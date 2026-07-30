@@ -1,23 +1,27 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+const siteOrigin =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  'https://danny-algorithm-studio.perojevicdanny.chatgpt.site';
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+const socialImage = new URL(`${basePath}/og.jpg`, siteOrigin).toString();
+
 export const metadata: Metadata = {
   title: 'Algorithm Studio — See code become structure',
   description:
     'Write, run, reverse, and understand algorithms through live visual execution.',
-  metadataBase: new URL(
-    'https://danny-algorithm-studio.perojevicdanny.chatgpt.site',
-  ),
+  metadataBase: new URL(siteOrigin),
   openGraph: {
     title: 'Algorithm Studio',
     description: 'See code become structure.',
     type: 'website',
     images: [
       {
-        url: '/og.png',
-        width: 1734,
-        height: 909,
-        alt: 'Algorithm Studio — See code become structure',
+        url: socialImage,
+        width: 1200,
+        height: 630,
+        alt: 'Equations written in chalk on a classroom board',
       },
     ],
   },
@@ -25,7 +29,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Algorithm Studio',
     description: 'See code become structure.',
-    images: ['/og.png'],
+    images: [socialImage],
   },
 };
 
