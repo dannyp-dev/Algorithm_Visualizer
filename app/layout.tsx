@@ -10,11 +10,20 @@ export const metadata: Metadata = {
     title: 'Algorithm Studio',
     description: 'See code become structure.',
     type: 'website',
+    images: [
+      {
+        url: '/og.png',
+        width: 1734,
+        height: 909,
+        alt: 'Algorithm Studio — See code become structure',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Algorithm Studio',
     description: 'See code become structure.',
+    images: ['/og.png'],
   },
 };
 
