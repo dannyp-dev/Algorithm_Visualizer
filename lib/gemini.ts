@@ -1,20 +1,9 @@
 import { z } from 'zod';
 import type {
   AlgorithmDefinition,
-  JsonValue,
   TraceFrame,
 } from '@/lib/types';
-
-const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValueSchema),
-    z.record(z.string(), jsonValueSchema),
-  ]),
-);
+import { jsonValueSchema } from '@/lib/validation';
 
 const generatedAlgorithmSchema = z.object({
   name: z.string().min(2).max(72),

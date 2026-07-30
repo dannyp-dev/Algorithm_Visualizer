@@ -4,6 +4,7 @@ import type {
   RuntimeStatus,
   TraceFrame,
 } from '@/lib/types';
+import { parseTraceFrames } from '@/lib/validation';
 
 const EXECUTION_TIMEOUT_MS = 12_000;
 
@@ -11,7 +12,7 @@ type StatusHandler = (status: RuntimeStatus, message: string) => void;
 
 type WorkerMessage =
   | { type: 'status'; status: 'loading' | 'running'; id?: string }
-  | { type: 'result'; id: string; frames: TraceFrame[] }
+  | { type: 'result'; id: string; frames: unknown }
   | { type: 'error'; id: string; message: string };
 
 interface PendingExecution {
@@ -92,10 +93,19 @@ class PyodideExecutionEngine {
       return;
     }
 
-    pending.resolve({
-      frames: message.frames,
-      durationMs: window.performance.now() - pending.startedAt,
-    });
+    try {
+      const frames: TraceFrame[] = parseTraceFrames(message.frames);
+      pending.resolve({
+        frames,
+        durationMs: window.performance.now() - pending.startedAt,
+      });
+    } catch (error) {
+      pending.reject(
+        error instanceof Error
+          ? error
+          : new Error('The worker returned an invalid execution trace.'),
+      );
+    }
   };
 
   private handleWorkerError = () => {
