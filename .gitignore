@@ -1,0 +1,8 @@
+.next/
+dist/
+node_modules/
+*.log
+.env*
+!.env.example
+work/
+.DS_Store
