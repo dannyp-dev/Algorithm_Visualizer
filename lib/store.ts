@@ -23,6 +23,7 @@ interface VisualizerState {
   setInputText: (inputText: string) => void;
   setRuntime: (status: RuntimeStatus, message?: string) => void;
   setExecution: (result: ExecutionResult) => void;
+  updateFrameExplanation: (index: number, explanation: string) => void;
   setFrameIndex: (index: number) => void;
   stepForward: () => void;
   stepBackward: () => void;
@@ -65,6 +66,12 @@ export const useVisualizerStore = create<VisualizerState>((set, get) => ({
       runtimeMessage: `${frames.length} snapshots · ${Math.round(durationMs)} ms`,
       isPlaying: false,
     }),
+  updateFrameExplanation: (index, explanation) =>
+    set((state) => ({
+      frames: state.frames.map((frame, frameIndex) =>
+        frameIndex === index ? { ...frame, explanation } : frame,
+      ),
+    })),
   setFrameIndex: (frameIndex) => {
     const lastIndex = Math.max(0, get().frames.length - 1);
     set({

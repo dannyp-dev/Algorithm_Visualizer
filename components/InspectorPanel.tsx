@@ -6,12 +6,18 @@ interface InspectorPanelProps {
   algorithm: AlgorithmDefinition;
   frame?: TraceFrame;
   frameCount: number;
+  canExplain: boolean;
+  isExplaining: boolean;
+  onExplain: () => void;
 }
 
 export default function InspectorPanel({
   algorithm,
   frame,
   frameCount,
+  canExplain,
+  isExplaining,
+  onExplain,
 }: InspectorPanelProps) {
   return (
     <div className="inspector-content">
@@ -22,6 +28,21 @@ export default function InspectorPanel({
           {frame?.explanation ||
             'Run the source to capture variables and visual state at every emit call.'}
         </p>
+        {frame && (
+          <button
+            className="explain-button"
+            type="button"
+            onClick={onExplain}
+            disabled={!canExplain || isExplaining}
+          >
+            <span>✦</span>
+            {isExplaining
+              ? 'Reading this snapshot…'
+              : canExplain
+                ? 'Explain this snapshot'
+                : 'Add a Gemini key to explain'}
+          </button>
+        )}
       </div>
 
       {frame && (

@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import CodeEditor from '@/components/CodeEditor';
+import GenerateDialog from '@/components/GenerateDialog';
 import InspectorPanel from '@/components/InspectorPanel';
 import TransportControls from '@/components/TransportControls';
 import VisualizationStage from '@/components/VisualizationStage';
+import { explainSnapshot, generateAlgorithm } from '@/lib/gemini';
 import { pyodideEngine } from '@/lib/pyodide-client';
 import { algorithmPresets } from '@/lib/presets';
 import { useVisualizerStore } from '@/lib/store';
@@ -17,6 +19,11 @@ import type {
 
 export default function VisualizerApp() {
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [isExplaining, setIsExplaining] = useState(false);
   const algorithm = useVisualizerStore((state) => state.algorithm);
   const source = useVisualizerStore((state) => state.source);
   const inputText = useVisualizerStore((state) => state.inputText);
@@ -27,6 +34,9 @@ export default function VisualizerApp() {
   const setAlgorithm = useVisualizerStore((state) => state.setAlgorithm);
   const setRuntime = useVisualizerStore((state) => state.setRuntime);
   const setExecution = useVisualizerStore((state) => state.setExecution);
+  const updateFrameExplanation = useVisualizerStore(
+    (state) => state.updateFrameExplanation,
+  );
   const setPlaying = useVisualizerStore((state) => state.setPlaying);
   const runtimeStatus = useVisualizerStore((state) => state.runtimeStatus);
   const runtimeMessage = useVisualizerStore((state) => state.runtimeMessage);
@@ -45,6 +55,7 @@ export default function VisualizerApp() {
   }, [runtimeStatus]);
 
   const runAlgorithm = useCallback(async () => {
+    if (isWorking) return;
     setPlaying(false);
 
     let input: JsonValue;
@@ -82,7 +93,46 @@ export default function VisualizerApp() {
     setPlaying,
     setRuntime,
     source,
+    isWorking,
   ]);
+
+  const handleGenerate = async (request: string) => {
+    setAiBusy(true);
+    setAiError('');
+    try {
+      const generated = await generateAlgorithm(apiKey, request);
+      setAlgorithm(generated);
+      setGenerateOpen(false);
+    } catch (error) {
+      setAiError(
+        error instanceof Error ? error.message : 'Algorithm generation failed.',
+      );
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const handleExplain = async () => {
+    if (!currentFrame || !apiKey.trim() || isExplaining) return;
+    setIsExplaining(true);
+    try {
+      const explanation = await explainSnapshot(
+        apiKey,
+        algorithm,
+        currentFrame,
+      );
+      updateFrameExplanation(frameIndex, explanation);
+    } catch (error) {
+      updateFrameExplanation(
+        frameIndex,
+        error instanceof Error
+          ? `Explanation unavailable: ${error.message}`
+          : 'Explanation unavailable.',
+      );
+    } finally {
+      setIsExplaining(false);
+    }
+  };
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -130,6 +180,17 @@ export default function VisualizerApp() {
           onClick={() => setLibraryOpen((open) => !open)}
         >
           Examples
+        </button>
+        <button
+          className="button button-quiet"
+          type="button"
+          onClick={() => {
+            setAiError('');
+            setGenerateOpen(true);
+          }}
+        >
+          Generate
+          <span className="button-spark">✦</span>
         </button>
         <button
           className="button button-primary"
@@ -201,6 +262,9 @@ export default function VisualizerApp() {
             algorithm={algorithm}
             frame={currentFrame}
             frameCount={frames.length}
+            canExplain={Boolean(apiKey.trim())}
+            isExplaining={isExplaining}
+            onExplain={() => void handleExplain()}
           />
         </aside>
       </section>
@@ -219,6 +283,17 @@ export default function VisualizerApp() {
       </section>
 
       <TransportControls />
+      <GenerateDialog
+        open={generateOpen}
+        apiKey={apiKey}
+        busy={aiBusy}
+        error={aiError}
+        onApiKeyChange={setApiKey}
+        onClose={() => {
+          if (!aiBusy) setGenerateOpen(false);
+        }}
+        onGenerate={(request) => void handleGenerate(request)}
+      />
     </main>
   );
 }
