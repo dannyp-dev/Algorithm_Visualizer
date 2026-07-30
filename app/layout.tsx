@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: 'Algorithm Studio — See code become structure',
   description:
     'Write, run, reverse, and understand algorithms through live visual execution.',
-  metadataBase: new URL('https://algorithm-studio.chatgpt.site'),
+  metadataBase: new URL('https://danny-algorithm-studio.chatgpt.site'),
   openGraph: {
     title: 'Algorithm Studio',
     description: 'See code become structure.',
