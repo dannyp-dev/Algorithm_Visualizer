@@ -7,6 +7,7 @@ import type {
 import { parseTraceFrames } from '@/lib/validation';
 
 const EXECUTION_TIMEOUT_MS = 12_000;
+const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 type StatusHandler = (status: RuntimeStatus, message: string) => void;
 
@@ -61,7 +62,9 @@ class PyodideExecutionEngine {
 
   private getWorker() {
     if (!this.worker) {
-      this.worker = new Worker('/pyodide-worker.mjs', { type: 'module' });
+      this.worker = new Worker(`${BASE_PATH}/pyodide-worker.mjs`, {
+        type: 'module',
+      });
       this.worker.addEventListener('message', this.handleMessage);
       this.worker.addEventListener('error', this.handleWorkerError);
     }

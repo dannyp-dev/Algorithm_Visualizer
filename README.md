@@ -12,8 +12,9 @@ The product is designed around one separation:
 ## Published release
 
 - Production: [danny-algorithm-studio.perojevicdanny.chatgpt.site](https://danny-algorithm-studio.perojevicdanny.chatgpt.site)
+- Public mirror: [dannyp-dev.github.io/algorithm-studio](https://dannyp-dev.github.io/algorithm-studio/)
 - Source: [github.com/dannyp-dev/algorithm-studio](https://github.com/dannyp-dev/algorithm-studio)
-- Access: owner-only for the first release; a visitor signs in with ChatGPT
+- Access: the GitHub Pages mirror is public and requires no ChatGPT sign-in
 - Release status: validated v1 foundation, ready for new algorithm presets and
   renderer adapters
 
@@ -139,6 +140,17 @@ AI features use a visitor-supplied Gemini session key.
 For a future public launch using a shared application key, add authentication,
 rate limits, usage monitoring, and a hosted secret before removing the
 visitor-supplied-key model.
+
+On the public GitHub Pages build, a visitor-supplied key is sent directly from
+that visitor's browser to Google's Gemini endpoint. It is still held only in
+memory and is never committed or stored by Algorithm Studio.
+
+## Media
+
+The social preview uses Artturi Jalli's real photograph
+[Math equations on a chalk board](https://unsplash.com/photos/gYrYa37fAKI),
+available under the Unsplash License. See
+[media credits](docs/media-credits.md).
 
 ## Execution limits
 

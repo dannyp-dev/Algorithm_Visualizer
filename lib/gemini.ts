@@ -180,16 +180,29 @@ async function callGemini(
     throw new Error('Add a Gemini session key to use AI features.');
   }
 
-  const response = await fetch('/api/gemini', {
+  const usesStaticHosting =
+    process.env.NEXT_PUBLIC_STATIC_HOSTING === 'true';
+  const endpoint = usesStaticHosting
+    ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent'
+    : '/api/gemini';
+
+  const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${apiKey.trim()}`,
-    },
+    headers: usesStaticHosting
+      ? {
+          'content-type': 'application/json',
+          'x-goog-api-key': apiKey.trim(),
+        }
+      : {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey.trim()}`,
+        },
     body: JSON.stringify(payload),
   });
 
-  const data = (await response.json()) as {
+  const data = (await response.json().catch(() => ({
+    error: `Gemini request failed (${response.status})`,
+  }))) as {
     error?: string | { message?: string };
   };
 
