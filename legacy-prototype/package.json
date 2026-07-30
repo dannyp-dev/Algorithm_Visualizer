@@ -1,0 +1,10 @@
+{
+  "name": "algorithm-visualizer",
+  "version": "1.0.0",
+  "description": "AI-powered algorithm visualizer using Gemini",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}

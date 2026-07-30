@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algorithm Visualizer — AI-Powered</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#7F77DD;--accent2:#5DCAA5;--danger:#E24B4A;--warn:#EF9F27;--pink:#D4537E;
+  --bg1:#ffffff;--bg2:#f5f4f0;--bg3:#eceae5;--border:rgba(0,0,0,0.11);
+  --text1:#1a1a18;--text2:#5f5e5a;--mono:'Courier New',monospace;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg1:#1e1e1c;--bg2:#252523;--bg3:#2c2c2a;--border:rgba(255,255,255,0.1);
+  --text1:#e8e6de;--text2:#888780;
+}}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;background:var(--bg2);color:var(--text1)}
+
+/* TOP BAR */
+#topbar{display:flex;align-items:center;gap:8px;padding:7px 14px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0;height:46px}
+#topbar select{background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--text1);padding:4px 10px;font-size:12px;cursor:pointer;max-width:180px}
+.sep{width:1px;height:22px;background:var(--border);margin:0 2px;flex-shrink:0}
+.ctrl-btn{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);color:var(--text1);cursor:pointer;font-size:14px;transition:all 0.15s;flex-shrink:0}
+.ctrl-btn:hover{background:var(--bg3)}
+.ctrl-btn.playing{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ctrl-btn:disabled{opacity:0.35;cursor:not-allowed;pointer-events:none}
+#speed-wrap{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+#speed-wrap input{width:80px;accent-color:var(--accent)}
+#step-info{font-size:11px;color:var(--text2);margin-left:auto;white-space:nowrap}
+#new-btn{padding:4px 13px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;flex-shrink:0}
+#new-btn:hover{opacity:0.85}
+
+/* BODY */
+#body{display:flex;height:calc(100vh - 46px);overflow:hidden}
+
+/* LEFT */
+#left{width:255px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg1);border-right:1px solid var(--border)}
+.pnl-hdr{font-size:10px;font-weight:600;color:var(--text2);padding:5px 10px;border-bottom:1px solid var(--border);background:var(--bg2);letter-spacing:0.07em;text-transform:uppercase;flex-shrink:0}
+#code-pane{flex:1;overflow-y:auto;font-family:var(--mono);font-size:11.5px;line-height:1.75;padding:4px 0;min-height:0}
+.cl{display:flex;padding:0 8px;transition:background 0.2s;min-height:20px}
+.cl.active{background:rgba(127,119,221,0.15);border-left:3px solid var(--accent)}
+.cl .ln{color:var(--text2);min-width:22px;user-select:none;font-size:10px;opacity:0.5;padding-top:1px}
+.cl .lc{color:var(--text1);white-space:pre;flex:1}
+.kw{color:#7F77DD}.fn{color:#1D9E75}.cm{color:#888;font-style:italic}.st{color:#D85A30}.nm{color:#BA7517}
+#vars-pane{border-top:1px solid var(--border);flex-shrink:0;max-height:170px;overflow-y:auto}
+#vars-table{width:100%;border-collapse:collapse;font-size:11.5px;font-family:var(--mono)}
+#vars-table th{text-align:left;padding:4px 8px;font-weight:600;color:var(--text2);font-size:10px;background:var(--bg2);position:sticky;top:0;border-bottom:1px solid var(--border);letter-spacing:0.05em;text-transform:uppercase}
+#vars-table td{padding:3px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.vn{color:var(--accent);font-weight:600}.vv{color:var(--warn);word-break:break-all}
+.vc{background:rgba(239,159,39,0.12)}
+
+/* CENTER */
+#center{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+#canvas-wrap{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;background:var(--bg2)}
+#canvas{width:100%;max-width:800px}
+#input-bar{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--border);background:var(--bg1);flex-shrink:0;align-items:center}
+#input-bar label{font-size:11px;color:var(--text2);white-space:nowrap}
+#custom-input{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--text1);padding:5px 10px;font-size:12px;font-family:var(--mono)}
+#custom-input:focus{outline:none;border-color:var(--accent)}
+#regen-btn{padding:5px 14px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500}
+
+/* ARRAY VIS */
+.arr-wrap{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;align-items:flex-end;padding:24px 12px 8px;min-height:130px}
+.bar-col{display:flex;flex-direction:column;align-items:center;transition:all 0.28s cubic-bezier(.4,0,.2,1)}
+.bar-rect{border-radius:4px 4px 0 0;transition:all 0.28s;background:var(--accent)}
+.bar-val{font-size:10px;color:var(--text2);margin-top:3px;font-family:var(--mono)}
+.bar-idx{font-size:9px;color:var(--text2);opacity:0.5}
+.bar-col.comparing .bar-rect{background:var(--warn)!important}
+.bar-col.swapping  .bar-rect{background:var(--danger)!important}
+.bar-col.sorted    .bar-rect{background:var(--accent2)!important}
+.bar-col.pivot     .bar-rect{background:var(--pink)!important}
+.bar-col.found     .bar-rect{background:var(--accent2)!important}
+.legend{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;padding:8px 0 4px;font-size:10px;color:var(--text2)}
+.leg-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle}
+
+/* RIGHT */
+#right{width:265px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg1);border-left:1px solid var(--border);overflow:hidden}
+#explain-pane{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.step-card{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:9px 11px;font-size:12px;line-height:1.65;color:var(--text1);border-left:3px solid var(--accent)}
+.step-card .sn{font-size:10px;color:var(--text2);font-weight:600;margin-bottom:4px;letter-spacing:0.05em;text-transform:uppercase}
+@keyframes pulse{0%,100%{opacity:0.6}50%{opacity:0.25}}
+.thinking{animation:pulse 1.2s ease-in-out infinite}
+#chat-area{border-top:1px solid var(--border);display:flex;flex-direction:column;height:230px;flex-shrink:0}
+#chat-msgs{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px}
+.msg{font-size:11.5px;line-height:1.55;padding:6px 10px;border-radius:9px;max-width:96%;word-break:break-word}
+.msg.user{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:2px}
+.msg.ai{background:var(--bg2);color:var(--text1);align-self:flex-start;border-bottom-left-radius:2px;border:1px solid var(--border)}
+#chat-input-row{display:flex;gap:6px;padding:7px 8px;border-top:1px solid var(--border);flex-shrink:0;align-items:flex-end}
+#chat-in{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:7px;color:var(--text1);padding:5px 9px;font-size:12px;resize:none;min-height:32px;max-height:80px;font-family:inherit}
+#chat-in:focus{outline:none;border-color:var(--accent)}
+#chat-send{padding:5px 11px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:14px;height:32px}
+
+/* API KEY SCREEN */
+#apikey-screen{position:fixed;inset:0;background:var(--bg2);display:flex;align-items:center;justify-content:center;z-index:700;padding:20px}
+#apikey-screen.hidden{display:none}
+#apikey-box{background:var(--bg1);border-radius:14px;border:1px solid var(--border);padding:28px;width:100%;max-width:460px;display:flex;flex-direction:column;gap:16px;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
+#apikey-box h2{font-size:18px;font-weight:600}
+#apikey-box p{font-size:13px;color:var(--text2);line-height:1.7}
+#apikey-box input{background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text1);padding:10px 12px;font-size:13px;font-family:var(--mono);width:100%}
+#apikey-box input:focus{outline:none;border-color:var(--accent)}
+#apikey-err{font-size:12px;color:var(--danger);display:none}
+#apikey-box .hint{font-size:11px;color:var(--text2);line-height:1.6}
+#apikey-box a{color:var(--accent)}
+#apikey-box button{padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+
+/* MODAL */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:500;padding:16px}
+#modal-overlay.hidden{display:none}
+#modal-box{background:var(--bg1);border-radius:14px;border:1px solid var(--border);padding:22px;width:100%;max-width:540px;box-shadow:0 8px 32px rgba(0,0,0,0.15);display:flex;flex-direction:column;gap:14px}
+#modal-box h2{font-size:17px;font-weight:600}
+#modal-box p{font-size:12px;color:var(--text2);line-height:1.65}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.preset-btn{padding:4px 11px;border:1px solid var(--border);border-radius:20px;background:var(--bg2);color:var(--text1);cursor:pointer;font-size:11px;transition:all 0.15s}
+.preset-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+#algo-ta{background:var(--bg2);border:1px solid var(--border);border-radius:9px;color:var(--text1);padding:10px;font-size:12px;font-family:var(--mono);resize:vertical;min-height:90px;width:100%;line-height:1.6}
+#algo-ta:focus{outline:none;border-color:var(--accent)}
+#modal-err{font-size:11px;color:var(--danger);display:none;padding:4px 0}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal-btns button{padding:7px 16px;border-radius:7px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:500;background:var(--bg2);color:var(--text1)}
+.modal-btns button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:600;flex-direction:column;gap:14px}
+#loading.hidden{display:none}
+.spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:spin 0.75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-msg{color:#fff;font-size:13px;font-weight:500}
+
+.placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:10px;color:var(--text2)}
+.placeholder .icon{font-size:40px;opacity:0.4}
+.placeholder button{margin-top:8px;padding:7px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+</style>
+</head>
+<body>
+
+<!-- API KEY -->
+<div id="apikey-screen">
+  <div id="apikey-box">
+    <h2>⚙ Algorithm Visualizer</h2>
+    <p>Enter your <strong>Google Gemini API key</strong> to generate AI-powered algorithm visualizations.</p>
+    <input type="password" id="apikey-input" placeholder="AIzaSy..." />
+    <div id="apikey-err"></div>
+    <p class="hint">Your key is sent only to the local server running on your machine — never to any third party. Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a>.</p>
+    <button onclick="saveKey()">Start Visualizing →</button>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading" class="hidden">
+  <div class="spinner"></div>
+  <div class="loading-msg" id="loading-msg">Generating execution trace...</div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="hidden">
+  <div id="modal-box">
+    <h2>⚙ New Algorithm</h2>
+    <p>Describe any algorithm or data structure. Gemini will generate a complete step-by-step execution trace and visualization.</p>
+    <div class="presets">
+      <button class="preset-btn" onclick="preset('bubble')">Bubble Sort</button>
+      <button class="preset-btn" onclick="preset('quick')">Quick Sort</button>
+      <button class="preset-btn" onclick="preset('merge')">Merge Sort</button>
+      <button class="preset-btn" onclick="preset('binary')">Binary Search</button>
+      <button class="preset-btn" onclick="preset('bfs')">BFS Graph</button>
+      <button class="preset-btn" onclick="preset('dijkstra')">Dijkstra's</button>
+      <button class="preset-btn" onclick="preset('bst')">BST Insert</button>
+      <button class="preset-btn" onclick="preset('dp')">Dynamic Programming</button>
+      <button class="preset-btn" onclick="preset('insertion')">Insertion Sort</button>
+      <button class="preset-btn" onclick="preset('dfs')">DFS Graph</button>
+    </div>
+    <textarea id="algo-ta" placeholder="e.g. Bubble sort on array [64,34,25,12,22,11,90] — show each comparison and swap step by step"></textarea>
+    <div id="modal-err"></div>
+    <div class="modal-btns">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" onclick="generate()">Generate Visualization →</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <select id="algo-sel" onchange="switchAlgo(this.value)">
+    <option value="">— No algorithm loaded —</option>
+  </select>
+  <div class="sep"></div>
+  <button class="ctrl-btn" id="btn-reset" title="Reset" onclick="goto(0)">↺</button>
+  <button class="ctrl-btn" id="btn-back"  title="Step back" onclick="back()" disabled>◀</button>
+  <button class="ctrl-btn" id="btn-play"  title="Play/Pause" onclick="togglePlay()">▶</button>
+  <button class="ctrl-btn" id="btn-fwd"   title="Step forward" onclick="fwd()" disabled>▶|</button>
+  <div class="sep"></div>
+  <div id="speed-wrap">Speed <input type="range" id="speed" min="1" max="10" value="5" oninput="onSpeed(this.value)"> <span id="spd-lbl">5</span></div>
+  <div class="sep"></div>
+  <button id="new-btn" onclick="openModal()">+ New Algorithm</button>
+  <span id="step-info">No algorithm loaded</span>
+</div>
+
+<!-- BODY -->
+<div id="body">
+  <div id="left">
+    <div class="pnl-hdr">Code</div>
+    <div id="code-pane"><div style="padding:24px 12px;text-align:center;color:var(--text2);font-size:12px;line-height:1.7">Load an algorithm<br>to see its pseudocode</div></div>
+    <div class="pnl-hdr">Variables</div>
+    <div id="vars-pane">
+      <table id="vars-table">
+        <thead><tr><th>Variable</th><th>Value</th></tr></thead>
+        <tbody id="vars-body"><tr><td colspan="2" style="text-align:center;color:var(--text2);padding:14px">—</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="center">
+    <div id="canvas-wrap">
+      <div id="canvas">
+        <div class="placeholder">
+          <div class="icon">⚙</div>
+          <p>Generate an algorithm to start visualizing</p>
+          <button onclick="openModal()">Get Started →</button>
+        </div>
+      </div>
+    </div>
+    <div id="input-bar">
+      <label>Input data:</label>
+      <input type="text" id="custom-input" placeholder="e.g. [64,34,25,12,22,11,90]">
+      <button id="regen-btn" onclick="regen()">Regenerate</button>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="pnl-hdr">AI Step Explanation</div>
+    <div id="explain-pane">
+      <div style="padding:20px 10px;text-align:center;color:var(--text2);font-size:12px;line-height:1.7">AI explanations appear here as you step through the algorithm</div>
+    </div>
+    <div id="chat-area">
+      <div class="pnl-hdr">Ask AI</div>
+      <div id="chat-msgs">
+        <div class="msg ai">Ask me anything about the algorithm — "Why did we skip this element?" or "What is the time complexity?"</div>
+      </div>
+      <div id="chat-input-row">
+        <textarea id="chat-in" rows="1" placeholder="Ask a question..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+        <button id="chat-send" onclick="sendChat()">↑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let API_KEY = '';
+let timeline = [], curStep = 0, playing = false, timer = null;
+let algo = null, algoList = [], explanations = {}, prevVars = {};
+
+const MODELS = ['gemini-3.5-flash', 'gemini-3.5-pro', 'gemini-3.1-flash-lite'];
+
+// ── API KEY ───────────────────────────────────────────────────────────────────
+function saveKey() {
+  const v = document.getElementById('apikey-input').value.trim();
+  if (!v.startsWith('AIza') || v.length < 20) {
+    showApiErr("Doesn't look like a valid Gemini key (should start with AIza...)");
+    return;
+  }
+  API_KEY = v;
+  document.getElementById('apikey-screen').classList.add('hidden');
+  openModal();
+}
+function showApiErr(m) { const e=document.getElementById('apikey-err'); e.textContent=m; e.style.display='block'; }
+document.getElementById('apikey-input').addEventListener('keydown', e => { if (e.key==='Enter') saveKey(); });
+
+// ── GEMINI via local proxy ────────────────────────────────────────────────────
+async function gemini(system, user) {
+  let errors = [];
+  for (const model of MODELS) {
+    try {
+      const res = await fetch(`/proxy/gemini/${model}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: system + '\n\n' + user }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
+        })
+      });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        errors.push(`${model}: ${res.status} ${res.statusText} (Non-JSON response: ${text.slice(0, 100)})`);
+        continue;
+      }
+
+      const data = await res.json();
+      if (data.error) {
+        errors.push(`${model}: ${data.error.message}`);
+        continue;
+      }
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch(e) {
+      errors.push(`${model}: ${e.message}`);
+    }
+  }
+  throw new Error("All models failed:\n" + errors.join('\n'));
+}
+
+// ── PRESETS ───────────────────────────────────────────────────────────────────
+const PRESETS = {
+  bubble:    'Bubble Sort on array [64, 34, 25, 12, 22, 11, 90]. Show each adjacent comparison and every swap.',
+  quick:     'Quick Sort on array [10, 7, 8, 9, 1, 5]. Use last element as pivot. Show partition with i and j pointers and all swaps.',
+  merge:     'Merge Sort on array [38, 27, 43, 3, 9, 82, 10]. Show the divide phase and the merge phase with subarrays.',
+  binary:    'Binary Search on sorted array [2, 5, 8, 12, 16, 23, 38, 45, 56, 72, 91] for value 23. Show left, right, mid pointers each step.',
+  bfs:       'Breadth-First Search on graph: nodes A,B,C,D,E,F. Edges: A-B, A-C, B-D, B-E, C-F. Start from A. Show the queue at every step.',
+  dijkstra:  "Dijkstra Shortest Path. Nodes: A,B,C,D,E. Edges: A-B(4), A-C(2), B-C(1), B-D(5), C-D(8), C-E(10), D-E(2). Find shortest paths from A.",
+  bst:       'Binary Search Tree insertion. Insert values: 50, 30, 70, 20, 40, 60, 80 one at a time. Show tree structure after each insert.',
+  dp:        'Fibonacci with memoization (top-down DP). Compute fib(7). Show recursion and memo table filling step by step.',
+  insertion: 'Insertion Sort on array [12, 11, 13, 5, 6]. Show the key element being picked and compared/shifted each pass.',
+  dfs:       'Depth-First Search on graph: nodes 1,2,3,4,5,6. Edges: 1-2, 1-3, 2-4, 2-5, 3-6. Start from node 1. Show the stack.',
+};
+function preset(k) { document.getElementById('algo-ta').value = PRESETS[k]; }
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal()  { document.getElementById('modal-overlay').classList.remove('hidden'); setErr(''); }
+function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+function setErr(m)    { const e=document.getElementById('modal-err'); e.textContent=m; e.style.display=m?'block':'none'; }
+function showLoad(m)  { document.getElementById('loading-msg').textContent=m||'Thinking...'; document.getElementById('loading').classList.remove('hidden'); }
+function hideLoad()   { document.getElementById('loading').classList.add('hidden'); }
+
+// ── GENERATE ──────────────────────────────────────────────────────────────────
+async function generate() {
+  const desc = document.getElementById('algo-ta').value.trim();
+  if (!desc) { setErr('Please describe an algorithm first.'); return; }
+  closeModal(); stopPlay();
+  showLoad('Gemini is tracing the algorithm...');
+
+  const SYS = `You are an algorithm execution trace engine. Given a description of any algorithm or data structure operation, return ONLY a valid JSON object. No markdown fences, no explanation, no comments — raw JSON only.
+
+Schema:
+{
+  "name": "string",
+  "type": "sort|graph|tree|dp|array",
+  "code": ["pseudocode line 1", ...],
+  "inputData": { "type": "array|graph|tree|dp", ...fields },
+  "timeline": [ { "step": 1, "codeLine": 0, "variables": {}, "state": {}, "action": "string" }, ... ]
+}
+
+TYPE RULES:
+
+sort / array:
+  inputData: { "type": "array", "values": [numbers] }
+  state: { "array": [current numbers], "comparing": [i,j], "swapping": [i,j], "sorted": [indices], "pivot": -1, "found": -1 }
+  variables: { "i": n, "j": n, ... }
+
+graph:
+  inputData: { "type": "graph", "nodes": ["A","B",...], "edges": [["A","B", optionalWeight], ...] }
+  state: { "nodes": [{"id":"A","status":"unvisited|visiting|visited","dist":null},...], "edges": [[same as input]], "queue": [], "visited": [], "current": "A" }
+
+tree:
+  inputData: { "type": "tree", "values": [insert order] }
+  state: { "nodes": [{"val": n, "x": 0.0-1.0, "y": 0.0-1.0, "parent": null|parentVal, "status": "default|current|inserted"}, ...] }
+  x/y are fractional canvas positions. Root: x=0.5, y=0.08. Each depth level increases y by ~0.18. Siblings spread horizontally.
+
+dp:
+  inputData: { "type": "dp", "colLabels": ["0","1",...], "rowLabels": ["fib(0)",...] }
+  state: { "table": [[row values]], "currentCell": [row, col], "highlighted": [[r,c],...] }
+
+REQUIREMENTS:
+- code: 10-18 lines of clean pseudocode
+- timeline: 12-35 steps covering ALL significant operations (every comparison, swap, visit, insert, table fill)
+- For sort: array in state must reflect the array AFTER the operation at that step
+- For graph: update node statuses progressively
+- For tree: include ALL nodes inserted so far at each step, with correct x/y positions
+- For dp: fill table cells progressively
+- Return ONLY the raw JSON object, nothing else`;
+
+  try {
+    const raw = await gemini(SYS, 'Generate a complete execution trace for:\n' + desc);
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+    const data = JSON.parse(cleaned);
+
+    algo = data;
+    timeline = data.timeline || [];
+    curStep = 0; explanations = {}; prevVars = {};
+
+    const sel = document.getElementById('algo-sel');
+    const opt = document.createElement('option');
+    opt.value = algoList.length; opt.textContent = data.name; opt.selected = true;
+    sel.appendChild(opt);
+    algoList.push(data);
+
+    renderCode(data.code || []);
+    document.getElementById('custom-input').value = inputStr(data);
+    updateAll();
+    hideLoad();
+    if (timeline.length) explainStep(0);
+  } catch(e) {
+    hideLoad(); openModal();
+    setErr('Error: ' + e.message);
+    console.error(e);
+  }
+}
+
+function inputStr(d) {
+  if (!d?.inputData) return '';
+  const t = d.inputData.type;
+  if (t==='array') return JSON.stringify(d.inputData.values||[]);
+  if (t==='graph') return 'Nodes: '+(d.inputData.nodes||[]).join(',') + ' | Edges: '+(d.inputData.edges||[]).map(e=>e.join('-')).join(', ');
+  if (t==='tree')  return 'Values: '+(d.inputData.values||[]).join(', ');
+  return JSON.stringify(d.inputData);
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function goto(i) { if(!timeline.length) return; curStep=Math.max(0,Math.min(i,timeline.length-1)); updateAll(); explainStep(curStep); }
+function fwd()   { if(curStep<timeline.length-1){curStep++;updateAll();explainStep(curStep);}else stopPlay(); }
+function back()  { if(curStep>0){curStep--;updateAll();explainStep(curStep);} }
+
+function togglePlay() {
+  if (playing) { stopPlay(); return; }
+  if (!timeline.length) return;
+  if (curStep >= timeline.length-1) curStep = 0;
+  playing = true;
+  document.getElementById('btn-play').classList.add('playing');
+  document.getElementById('btn-play').textContent = '⏸';
+  const delay = Math.round(1500 / parseInt(document.getElementById('speed').value));
+  timer = setInterval(() => { if(curStep>=timeline.length-1){stopPlay();return;} curStep++;updateAll();explainStep(curStep); }, delay);
+}
+function stopPlay() {
+  playing=false; if(timer){clearInterval(timer);timer=null;}
+  document.getElementById('btn-play').classList.remove('playing');
+  document.getElementById('btn-play').textContent='▶';
+}
+function onSpeed(v) { document.getElementById('spd-lbl').textContent=v; if(playing){stopPlay();togglePlay();} }
+
+function switchAlgo(i) {
+  if(i==='') return;
+  const d=algoList[+i]; if(!d) return;
+  stopPlay(); algo=d; timeline=d.timeline||[]; curStep=0; explanations={}; prevVars={};
+  renderCode(d.code||[]);
+  document.getElementById('custom-input').value=inputStr(d);
+  updateAll(); if(timeline.length) explainStep(0);
+}
+
+async function regen() {
+  if(!algo) return;
+  const inp=document.getElementById('custom-input').value.trim(); if(!inp) return;
+  document.getElementById('algo-ta').value=algo.name+' with input: '+inp;
+  await generate();
+}
+
+// ── UPDATE UI ─────────────────────────────────────────────────────────────────
+function updateAll() {
+  const s = timeline[curStep];
+  document.getElementById('step-info').textContent = timeline.length ? `Step ${curStep+1} / ${timeline.length}` : 'No algorithm loaded';
+  document.getElementById('btn-back').disabled = !timeline.length||curStep<=0;
+  document.getElementById('btn-fwd').disabled  = !timeline.length||curStep>=timeline.length-1;
+
+  document.querySelectorAll('.cl').forEach(e=>e.classList.remove('active'));
+  if (s) {
+    const ln = s.codeLine??s.line??-1;
+    if(ln>=0){const el=document.getElementById('cl_'+ln);if(el){el.classList.add('active');el.scrollIntoView({block:'nearest',behavior:'smooth'});}}
+  }
+
+  const tbody = document.getElementById('vars-body'); tbody.innerHTML='';
+  if (s?.variables && Object.keys(s.variables).length) {
+    Object.entries(s.variables).forEach(([k,v])=>{
+      const changed=JSON.stringify(prevVars[k])!==JSON.stringify(v);
+      const tr=document.createElement('tr'); if(changed) tr.className='vc';
+      tr.innerHTML=`<td class="vn">${k}</td><td class="vv">${Array.isArray(v)?'['+v+']':String(v)}</td>`;
+      tbody.appendChild(tr);
+    });
+    prevVars={...s.variables};
+  } else {
+    tbody.innerHTML='<tr><td colspan="2" style="text-align:center;color:var(--text2);padding:12px">—</td></tr>';
+  }
+  if(s&&algo) renderCanvas(s);
+}
+
+// ── CODE ──────────────────────────────────────────────────────────────────────
+function renderCode(lines) {
+  const el=document.getElementById('code-pane'); el.innerHTML='';
+  lines.forEach((ln,i)=>{
+    const d=document.createElement('div'); d.className='cl'; d.id='cl_'+i;
+    d.innerHTML=`<span class="ln">${i+1}</span><span class="lc">${hl(ln)}</span>`;
+    el.appendChild(d);
+  });
+}
+function hl(s) {
+  let h=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  h=h.replace(/(\/\/[^\n]*|#[^\n]*)/g,'<span class="cm">$1</span>');
+  h=h.replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g,'<span class="st">$1</span>');
+  h=h.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="nm">$1</span>');
+  ['for','while','if','else','elif','return','function','def','let','var','const','in','of','and','or','not','true','false','null','new','class','do','end','swap','push','pop','enqueue','dequeue','min','max','infinity'].forEach(k=>{
+    h=h.replace(new RegExp(`\\b(${k})\\b`,'g'),'<span class="kw">$1</span>');
+  });
+  h=h.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g,'<span class="fn">$1</span>');
+  return h;
+}
+
+// ── CANVAS ────────────────────────────────────────────────────────────────────
+function renderCanvas(s) {
+  const c=document.getElementById('canvas'), st=s.state||{}, t=algo.type||'array';
+  if      (t==='sort'||t==='array'||st.array)                             drawArray(c,s);
+  else if (t==='graph'||(st.nodes&&algo.inputData?.type==='graph'))       drawGraph(c,s);
+  else if (t==='tree' ||(st.nodes&&algo.inputData?.type==='tree'))        drawTree(c,s);
+  else if (t==='dp'   ||st.table)                                         drawDP(c,s);
+  else c.innerHTML=`<pre style="padding:16px;font-size:11px;color:var(--text2);white-space:pre-wrap">${JSON.stringify(st,null,2)}</pre>`;
+}
+
+function drawArray(c,s) {
+  const arr=s.state?.array||[],cmp=s.state?.comparing||[],swp=s.state?.swapping||[],srt=s.state?.sorted||[];
+  const pvt=s.state?.pivot??-1,fnd=s.state?.found??-1;
+  if(!arr.length){c.innerHTML='<div class="placeholder"><div class="icon">📊</div><p>No array data</p></div>';return;}
+  const maxV=Math.max(...arr,1),bw=Math.max(18,Math.min(55,Math.floor(720/arr.length)-6)),maxH=160;
+  let html='<div class="arr-wrap">';
+  arr.forEach((v,i)=>{
+    const h=Math.max(6,Math.round((v/maxV)*maxH));
+    let cls='';
+    if(swp.includes(i)) cls='swapping';
+    else if(cmp.includes(i)) cls='comparing';
+    else if(i===fnd) cls='found';
+    else if(i===pvt) cls='pivot';
+    else if(srt.includes(i)) cls='sorted';
+    html+=`<div class="bar-col ${cls}" style="width:${bw}px"><div class="bar-rect" style="height:${h}px;width:100%"></div><div class="bar-val">${v}</div><div class="bar-idx">${i}</div></div>`;
+  });
+  html+=`</div><div class="legend">
+    <span><span class="leg-dot" style="background:var(--accent)"></span>Default</span>
+    <span><span class="leg-dot" style="background:var(--warn)"></span>Comparing</span>
+    <span><span class="leg-dot" style="background:var(--danger)"></span>Swapping</span>
+    <span><span class="leg-dot" style="background:var(--accent2)"></span>Sorted/Found</span>
+    <span><span class="leg-dot" style="background:var(--pink)"></span>Pivot</span>
+  </div>`;
+  c.innerHTML=html;
+}
+
+function drawGraph(c,s) {
+  const nodes=s.state?.nodes||[],edges=s.state?.edges||algo.inputData?.edges||[];
+  const W=620,H=300;
+  const nm={};
+  nodes.forEach((n,i)=>{
+    const a=(i/nodes.length)*2*Math.PI-Math.PI/2,r=Math.min(W,H)*0.36;
+    nm[n.id]={...n,px:n.x!=null?n.x*W:W/2+r*Math.cos(a),py:n.y!=null?n.y*H:H/2+r*Math.sin(a)};
+  });
+  const col=st=>({visited:'#5DCAA5',visiting:'#EF9F27',current:'#EF9F27',unvisited:'#7F77DD',default:'#7F77DD'}[st||'default']||'#7F77DD');
+  let svg=`<svg style="width:100%;overflow:visible" viewBox="0 0 ${W} ${H+44}" xmlns="http://www.w3.org/2000/svg">`;
+  edges.forEach(e=>{
+    const a=nm[e[0]],b=nm[e[1]];if(!a||!b)return;
+    const vis=a.status==='visited'&&b.status==='visited';
+    svg+=`<line x1="${a.px}" y1="${a.py}" x2="${b.px}" y2="${b.py}" stroke="${vis?'#5DCAA5':'var(--border)'}" stroke-width="${vis?2.5:1.5}" opacity="${vis?0.9:0.4}"/>`;
+    if(e[2]!=null){const mx=(a.px+b.px)/2,my=(a.py+b.py)/2;svg+=`<rect x="${mx-10}" y="${my-9}" width="20" height="16" rx="3" fill="var(--bg2)"/><text x="${mx}" y="${my+2}" font-size="10" fill="var(--text2)" text-anchor="middle">${e[2]}</text>`;}
+  });
+  nodes.forEach(n=>{
+    const m=nm[n.id];if(!m)return;
+    const c2=col(n.status);
+    svg+=`<circle cx="${m.px}" cy="${m.py}" r="20" fill="${c2}" fill-opacity="0.15" stroke="${c2}" stroke-width="2.5"/>`;
+    svg+=`<text x="${m.px}" y="${m.py+1}" font-size="13" font-weight="600" fill="${c2}" text-anchor="middle" dominant-baseline="central">${n.id}</text>`;
+    if(n.dist!=null){const dv=n.dist>=99999?'∞':n.dist;svg+=`<text x="${m.px}" y="${m.py+30}" font-size="10" fill="var(--text2)" text-anchor="middle">${dv}</text>`;}
+  });
+  svg+=`<text x="8" y="${H+18}" font-size="10" fill="#7F77DD">● Unvisited</text>`;
+  svg+=`<text x="95" y="${H+18}" font-size="10" fill="#EF9F27">● Visiting</text>`;
+  svg+=`<text x="170" y="${H+18}" font-size="10" fill="#5DCAA5">● Visited</text>`;
+  if(s.state?.queue?.length) svg+=`<text x="${W-210}" y="${H+18}" font-size="10" fill="var(--text2)">Queue: [${s.state.queue.join(', ')}]</text>`;
+  if(s.state?.visited?.length) svg+=`<text x="${W-210}" y="${H+34}" font-size="10" fill="#5DCAA5">Visited: ${s.state.visited.join(' → ')}</text>`;
+  svg+=`</svg>`;
+  c.innerHTML=svg;
+}
+
+function drawTree(c,s) {
+  const nodes=s.state?.nodes||[];
+  const W=620,H=300;
+  const col=st=>({current:'#EF9F27',inserted:'#5DCAA5',default:'#7F77DD',visiting:'#EF9F27'}[st||'default']||'#7F77DD');
+  let svg=`<svg style="width:100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  nodes.forEach(n=>{
+    if(n.parent==null) return;
+    const par=nodes.find(p=>p.val===n.parent||p.id===n.parent);if(!par)return;
+    svg+=`<line x1="${n.x*W}" y1="${n.y*H}" x2="${par.x*W}" y2="${par.y*H}" stroke="var(--border)" stroke-width="1.5"/>`;
+  });
+  nodes.forEach(n=>{
+    const x=n.x*W,y=n.y*H,c2=col(n.status);
+    svg+=`<circle cx="${x}" cy="${y}" r="18" fill="${c2}" fill-opacity="0.15" stroke="${c2}" stroke-width="2"/>`;
+    svg+=`<text x="${x}" y="${y+1}" font-size="12" font-weight="600" fill="${c2}" text-anchor="middle" dominant-baseline="central">${n.val??n.id??'?'}</text>`;
+  });
+  svg+=`</svg>`;
+  c.innerHTML=svg;
+}
+
+function drawDP(c,s) {
+  const tbl=s.state?.table||[[]],cur=s.state?.currentCell||[],hl2=s.state?.highlighted||[];
+  const colL=algo.inputData?.colLabels||[],rowL=algo.inputData?.rowLabels||[];
+  let html='<div style="overflow-x:auto;padding:16px"><table style="border-collapse:collapse;font-family:var(--mono);font-size:12px;margin:0 auto">';
+  if(colL.length) html+=`<thead><tr><th style="padding:6px 12px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px"></th>${colL.map(l=>`<th style="padding:6px 12px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px">${l}</th>`).join('')}</tr></thead>`;
+  html+='<tbody>';
+  tbl.forEach((row,ri)=>{
+    html+='<tr>';
+    if(rowL.length) html+=`<th style="padding:6px 12px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:10px;white-space:nowrap">${rowL[ri]??ri}</th>`;
+    row.forEach((v,ci)=>{
+      const isCur=cur[0]===ri&&cur[1]===ci;
+      const isHl=hl2.some(h=>h[0]===ri&&h[1]===ci);
+      const bg=isCur?'rgba(127,119,221,0.25)':isHl?'rgba(93,202,165,0.2)':'transparent';
+      const border=isCur?'2px solid var(--accent)':'1px solid var(--border)';
+      html+=`<td style="padding:8px 14px;border:${border};background:${bg};text-align:center;min-width:44px;transition:all 0.25s">${v??'—'}</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  c.innerHTML=html;
+}
+
+// ── AI EXPLAIN ────────────────────────────────────────────────────────────────
+async function explainStep(i) {
+  if(!algo||!timeline[i]) return;
+  if(explanations[i]){ renderExplain(i); return; }
+  const ep=document.getElementById('explain-pane');
+  ep.innerHTML=`<div class="step-card thinking"><div class="sn">Step ${i+1}</div><div>Analyzing...</div></div>`;
+  const s=timeline[i];
+  try {
+    const reply=await gemini(
+      'You are a CS tutor explaining algorithm execution. Be concise (2-3 sentences), specific about the actual values, and explain the WHY. Plain text only, no markdown.',
+      `Algorithm: ${algo.name}\nStep ${i+1} of ${timeline.length}\nCode line: ${algo.code?.[s.codeLine]||'—'}\nAction: ${s.action||'executing'}\nVariables: ${JSON.stringify(s.variables||{})}\nState: ${JSON.stringify(s.state||{}).slice(0,400)}\n\nExplain in 2-3 sentences what is happening and why.`
+    );
+    explanations[i]=reply; renderExplain(i);
+  } catch(e) {
+    ep.innerHTML=`<div class="step-card"><div class="sn">Step ${i+1}</div><div style="color:var(--danger)">Could not load explanation.</div></div>`;
+  }
+}
+
+function renderExplain(i) {
+  const ep=document.getElementById('explain-pane'); ep.innerHTML='';
+  const start=Math.max(0,i-2);
+  for(let x=start;x<=i;x++){
+    if(!timeline[x]) continue;
+    const d=document.createElement('div'); d.className='step-card';
+    d.style.opacity=x===i?'1':'0.4';
+    d.style.borderLeftColor=x===i?'var(--accent)':'var(--border)';
+    d.innerHTML=`<div class="sn">Step ${x+1}</div><div>${explanations[x]||'...'}</div>`;
+    ep.appendChild(d);
+  }
+  ep.scrollTop=ep.scrollHeight;
+}
+
+// ── CHAT ──────────────────────────────────────────────────────────────────────
+async function sendChat() {
+  const inp=document.getElementById('chat-in');
+  const msg=inp.value.trim(); if(!msg) return;
+  inp.value=''; inp.style.height='32px';
+  const msgs=document.getElementById('chat-msgs');
+  const um=document.createElement('div'); um.className='msg user'; um.textContent=msg; msgs.appendChild(um);
+  const am=document.createElement('div'); am.className='msg ai thinking'; am.textContent='Thinking...'; msgs.appendChild(am);
+  msgs.scrollTop=msgs.scrollHeight;
+  const ctx=algo?`Algorithm: ${algo.name}, Step: ${curStep+1}/${timeline.length}, Code: ${algo.code?.[timeline[curStep]?.codeLine]||'—'}, Variables: ${JSON.stringify(timeline[curStep]?.variables||{})}, State: ${JSON.stringify(timeline[curStep]?.state||{}).slice(0,300)}`:'No algorithm loaded.';
+  try {
+    const reply=await gemini('You are a CS tutor. Answer concisely in 3-5 sentences. Be specific about values. Plain text only.', `Context:\n${ctx}\n\nQuestion: ${msg}`);
+    am.className='msg ai'; am.textContent=reply;
+  } catch(e){
+    am.className='msg ai'; am.textContent='Error: '+e.message;
+  }
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+document.getElementById('chat-in').addEventListener('input',function(){this.style.height='32px';this.style.height=Math.min(this.scrollHeight,80)+'px';});
+</script>
+</body>
+</html>
