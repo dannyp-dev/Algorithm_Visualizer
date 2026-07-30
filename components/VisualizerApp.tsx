@@ -1,17 +1,40 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import CodeEditor from '@/components/CodeEditor';
+import InspectorPanel from '@/components/InspectorPanel';
+import TransportControls from '@/components/TransportControls';
+import VisualizationStage from '@/components/VisualizationStage';
+import { pyodideEngine } from '@/lib/pyodide-client';
 import { algorithmPresets } from '@/lib/presets';
 import { useVisualizerStore } from '@/lib/store';
+import type {
+  AlgorithmDefinition,
+  GraphEdge,
+  JsonValue,
+  VisualState,
+} from '@/lib/types';
 
 export default function VisualizerApp() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const algorithm = useVisualizerStore((state) => state.algorithm);
+  const source = useVisualizerStore((state) => state.source);
   const inputText = useVisualizerStore((state) => state.inputText);
+  const frames = useVisualizerStore((state) => state.frames);
+  const frameIndex = useVisualizerStore((state) => state.frameIndex);
+  const setSource = useVisualizerStore((state) => state.setSource);
   const setInputText = useVisualizerStore((state) => state.setInputText);
   const setAlgorithm = useVisualizerStore((state) => state.setAlgorithm);
+  const setRuntime = useVisualizerStore((state) => state.setRuntime);
+  const setExecution = useVisualizerStore((state) => state.setExecution);
+  const setPlaying = useVisualizerStore((state) => state.setPlaying);
   const runtimeStatus = useVisualizerStore((state) => state.runtimeStatus);
   const runtimeMessage = useVisualizerStore((state) => state.runtimeMessage);
+
+  const currentFrame = frames[frameIndex];
+  const preview = useMemo(() => getInputPreview(algorithm), [algorithm]);
+  const isWorking =
+    runtimeStatus === 'loading' || runtimeStatus === 'running';
 
   const statusLabel = useMemo(() => {
     if (runtimeStatus === 'idle') return 'Runtime cold';
@@ -20,6 +43,57 @@ export default function VisualizerApp() {
     if (runtimeStatus === 'ready') return 'Trace ready';
     return 'Runtime error';
   }, [runtimeStatus]);
+
+  const runAlgorithm = useCallback(async () => {
+    setPlaying(false);
+
+    let input: JsonValue;
+    try {
+      input = JSON.parse(inputText) as JsonValue;
+    } catch {
+      setRuntime('error', 'Input must be valid JSON');
+      return;
+    }
+
+    setRuntime('loading', 'Preparing the Python worker');
+    try {
+      const result = await pyodideEngine.execute(
+        source,
+        input,
+        (status, message) => setRuntime(status, message),
+      );
+      if (!result.frames.length) {
+        setRuntime(
+          'error',
+          'Execution finished without frames. Add at least one emit() call.',
+        );
+        return;
+      }
+      setExecution(result);
+    } catch (error) {
+      setRuntime(
+        'error',
+        error instanceof Error ? error.message : 'Execution failed.',
+      );
+    }
+  }, [
+    inputText,
+    setExecution,
+    setPlaying,
+    setRuntime,
+    source,
+  ]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        void runAlgorithm();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [runAlgorithm]);
 
   return (
     <main className="studio-shell">
@@ -57,8 +131,14 @@ export default function VisualizerApp() {
         >
           Examples
         </button>
-        <button className="button button-primary" type="button">
-          Run algorithm
+        <button
+          className="button button-primary"
+          type="button"
+          onClick={() => void runAlgorithm()}
+          disabled={isWorking}
+        >
+          {isWorking ? 'Running…' : 'Run algorithm'}
+          <kbd>⌘ ↵</kbd>
         </button>
       </header>
 
@@ -95,13 +175,12 @@ export default function VisualizerApp() {
             <span>01 / Source</span>
             <span>Python 3.13 · WASM</span>
           </div>
-          <div className="editor-placeholder">
-            <div className="line-numbers" aria-hidden="true">
-              {Array.from({ length: 18 }, (_, index) => (
-                <span key={index}>{index + 1}</span>
-              ))}
-            </div>
-            <pre>{algorithm.source}</pre>
+          <div className="editor-frame">
+            <CodeEditor
+              value={source}
+              activeLine={currentFrame?.line}
+              onChange={setSource}
+            />
           </div>
         </article>
 
@@ -110,17 +189,7 @@ export default function VisualizerApp() {
             <span>02 / Structure</span>
             <span>D3 viewport</span>
           </div>
-          <div className="stage-placeholder">
-            <div className="orbit orbit-one" />
-            <div className="orbit orbit-two" />
-            <div className="stage-copy">
-              <span className="stage-index">00</span>
-              <p>Run the algorithm to assemble its execution trace.</p>
-              <small>
-                Every emitted snapshot becomes a reversible frame.
-              </small>
-            </div>
-          </div>
+          <VisualizationStage frame={currentFrame} preview={preview} />
         </article>
 
         <aside className="workspace-panel inspector-panel">
@@ -128,30 +197,11 @@ export default function VisualizerApp() {
             <span>03 / State</span>
             <span>Live</span>
           </div>
-          <div className="inspector-content">
-            <div>
-              <p className="eyebrow">Current operation</p>
-              <h2>Awaiting execution</h2>
-              <p>
-                The worker will capture variables and visual state every time
-                the algorithm calls <code>emit()</code>.
-              </p>
-            </div>
-            <dl>
-              <div>
-                <dt>Time</dt>
-                <dd>{algorithm.complexity.time}</dd>
-              </div>
-              <div>
-                <dt>Space</dt>
-                <dd>{algorithm.complexity.space}</dd>
-              </div>
-              <div>
-                <dt>Frames</dt>
-                <dd>—</dd>
-              </div>
-            </dl>
-          </div>
+          <InspectorPanel
+            algorithm={algorithm}
+            frame={currentFrame}
+            frameCount={frames.length}
+          />
         </aside>
       </section>
 
@@ -168,34 +218,57 @@ export default function VisualizerApp() {
         />
       </section>
 
-      <footer className="transport-shell">
-        <div className="transport-controls">
-          <button type="button" aria-label="Return to first frame">
-            ↤
-          </button>
-          <button type="button" aria-label="Previous frame">
-            ←
-          </button>
-          <button className="transport-play" type="button" aria-label="Play">
-            ▶
-          </button>
-          <button type="button" aria-label="Next frame">
-            →
-          </button>
-          <span>00 / 00</span>
-        </div>
-        <div className="timeline-track" aria-hidden="true">
-          <span />
-        </div>
-        <div className="technology-line">
-          <span>Next.js</span>
-          <span>Monaco</span>
-          <span>Pyodide</span>
-          <span>Zustand</span>
-          <span>D3</span>
-          <span>Gemini</span>
-        </div>
-      </footer>
+      <TransportControls />
     </main>
   );
+}
+
+function getInputPreview(
+  algorithm: AlgorithmDefinition,
+): VisualState | undefined {
+  if (!isRecord(algorithm.input)) return undefined;
+
+  if (
+    algorithm.family === 'array' &&
+    Array.isArray(algorithm.input.values) &&
+    algorithm.input.values.every((value) => typeof value === 'number')
+  ) {
+    return {
+      kind: 'array',
+      values: algorithm.input.values,
+    };
+  }
+
+  if (
+    algorithm.family === 'graph' &&
+    Array.isArray(algorithm.input.nodes) &&
+    Array.isArray(algorithm.input.edges)
+  ) {
+    const nodes = algorithm.input.nodes
+      .filter((node): node is string => typeof node === 'string')
+      .map((id) => ({ id, status: 'idle' as const }));
+    const edges: GraphEdge[] = algorithm.input.edges.flatMap((edge) => {
+      if (
+        !Array.isArray(edge) ||
+        typeof edge[0] !== 'string' ||
+        typeof edge[1] !== 'string'
+      ) {
+        return [];
+      }
+      return [
+        {
+          source: edge[0],
+          target: edge[1],
+          weight: typeof edge[2] === 'number' ? edge[2] : undefined,
+        },
+      ];
+    });
+    return { kind: 'graph', nodes, edges };
+  }
+
+  return undefined;
+}
+
+function isRecord(value: JsonValue): value is { [key: string]: JsonValue } {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
