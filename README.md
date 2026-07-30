@@ -9,6 +9,14 @@ The product is designed around one separation:
 > The algorithm publishes meaningful state. The platform owns execution, time,
 > visualization, and explanation.
 
+## Published release
+
+- Production: [danny-algorithm-studio.perojevicdanny.chatgpt.site](https://danny-algorithm-studio.perojevicdanny.chatgpt.site)
+- Source: [github.com/dannyp-dev/algorithm-studio](https://github.com/dannyp-dev/algorithm-studio)
+- Access: owner-only for the first release; a visitor signs in with ChatGPT
+- Release status: validated v1 foundation, ready for new algorithm presets and
+  renderer adapters
+
 ## What works
 
 - Edit Python in Monaco Editor
