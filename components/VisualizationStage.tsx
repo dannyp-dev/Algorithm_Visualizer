@@ -403,14 +403,18 @@ function GridRenderer({ visual }: { visual: GridVisual }) {
           )}
           {row.map((cell, columnIndex) => {
             const key = `${rowIndex}-${columnIndex}`;
-            const className = active.has(key)
-              ? 'grid-cell is-active'
-              : settled.has(key)
-                ? 'grid-cell is-settled'
-                : 'grid-cell';
+            const token = String(cell ?? '—');
+            const classes = ['grid-cell'];
+            if (active.has(key)) classes.push('is-active');
+            else if (settled.has(key)) classes.push('is-settled');
+            if (token === '■') classes.push('is-wall');
+            if (token === '○') classes.push('is-open');
+            if (token === '◆') classes.push('is-path');
+            if (token === 'S') classes.push('is-start');
+            if (token === 'G') classes.push('is-goal');
             return (
-              <span className={className} key={key}>
-                {String(cell ?? '—')}
+              <span className={classes.join(' ')} key={key}>
+                {token}
               </span>
             );
           })}

@@ -149,6 +149,144 @@ def graph_state(nodes, edges, distances, unvisited, active):
     }
 `;
 
+const aStarGridSource = `import heapq
+
+
+def run(input_data, emit):
+    rows = int(input_data["rows"])
+    columns = int(input_data["columns"])
+    walls = {tuple(cell) for cell in input_data["walls"]}
+    start = tuple(input_data["start"])
+    goal = tuple(input_data["goal"])
+    open_heap = [(heuristic(start, goal), 0, start)]
+    open_cells = {start}
+    closed = set()
+    came_from = {}
+    g_score = {start: 0}
+
+    emit(16, "Seed the open set", {
+        "current": start, "open_set": sorted(open_cells),
+        "closed_set": [], "goal": goal
+    }, grid_state(rows, columns, walls, open_cells, closed, start, goal))
+
+    while open_heap:
+        _, current_cost, current = heapq.heappop(open_heap)
+        if current in closed:
+            continue
+        open_cells.discard(current)
+
+        emit(27, "Choose the lowest estimated-cost cell", {
+            "current": current, "g_score": current_cost,
+            "open_set": sorted(open_cells), "closed_set": sorted(closed)
+        }, grid_state(
+            rows, columns, walls, open_cells, closed, start, goal, current
+        ))
+
+        if current == goal:
+            path = reconstruct_path(came_from, current)
+            emit(36, "Shortest path reconstructed", {
+                "path": path, "cost": len(path) - 1,
+                "open_set": sorted(open_cells),
+                "closed_set": sorted(closed)
+            }, grid_state(
+                rows, columns, walls, open_cells, closed,
+                start, goal, current, path
+            ), "Follow parent links from the goal back to the start.")
+            return
+
+        closed.add(current)
+        for neighbor in neighbors(current, rows, columns):
+            if neighbor in walls or neighbor in closed:
+                continue
+            tentative_cost = current_cost + 1
+            if tentative_cost < g_score.get(neighbor, float("inf")):
+                came_from[neighbor] = current
+                g_score[neighbor] = tentative_cost
+                estimate = tentative_cost + heuristic(neighbor, goal)
+                heapq.heappush(open_heap, (estimate, tentative_cost, neighbor))
+                open_cells.add(neighbor)
+                emit(57, "Update a better route into the open set", {
+                    "current": current, "neighbor": neighbor,
+                    "g_score": tentative_cost, "f_score": estimate,
+                    "open_set": sorted(open_cells),
+                    "closed_set": sorted(closed)
+                }, grid_state(
+                    rows, columns, walls, open_cells, closed,
+                    start, goal, neighbor
+                ))
+
+    emit(67, "No path reaches the goal", {
+        "open_set": [], "closed_set": sorted(closed)
+    }, grid_state(rows, columns, walls, set(), closed, start, goal),
+       "The open set is empty, so every reachable option was exhausted.")
+
+
+def heuristic(cell, goal):
+    return abs(cell[0] - goal[0]) + abs(cell[1] - goal[1])
+
+
+def neighbors(cell, rows, columns):
+    row, column = cell
+    candidates = [
+        (row - 1, column), (row + 1, column),
+        (row, column - 1), (row, column + 1)
+    ]
+    return [
+        candidate for candidate in candidates
+        if 0 <= candidate[0] < rows and 0 <= candidate[1] < columns
+    ]
+
+
+def reconstruct_path(came_from, current):
+    path = [current]
+    while current in came_from:
+        current = came_from[current]
+        path.append(current)
+    path.reverse()
+    return path
+
+
+def grid_state(
+    rows, columns, walls, open_cells, closed, start, goal,
+    current=None, path=None
+):
+    path_cells = set(path or [])
+    cells = []
+    for row in range(rows):
+        grid_row = []
+        for column in range(columns):
+            cell = (row, column)
+            if cell == start:
+                token = "S"
+            elif cell == goal:
+                token = "G"
+            elif cell in walls:
+                token = "■"
+            elif cell in path_cells:
+                token = "◆"
+            elif cell == current:
+                token = "◎"
+            elif cell in open_cells:
+                token = "○"
+            elif cell in closed:
+                token = "×"
+            else:
+                token = "·"
+            grid_row.append(token)
+        cells.append(grid_row)
+
+    active = list(path_cells) if path_cells else ([current] if current else [])
+    settled = [cell for cell in closed if cell not in path_cells]
+    return {
+        "kind": "grid",
+        "cells": cells,
+        "rowLabels": [str(index) for index in range(rows)],
+        "columnLabels": [str(index) for index in range(columns)],
+        "activeCells": active,
+        "settledCells": settled
+    }
+`;
+
 export const algorithmPresets: AlgorithmDefinition[] = [
   {
     id: 'bubble-sort',
@@ -201,6 +339,36 @@ export const algorithmPresets: AlgorithmDefinition[] = [
       start: 'A',
     },
     complexity: { time: 'O(V²)', space: 'O(V + E)' },
+    origin: 'preset',
+  },
+  {
+    id: 'a-star-grid-pathfinding',
+    name: 'A* Grid Pathfinding',
+    summary:
+      'A heuristic prioritizes the most promising cells and reconstructs the shortest path.',
+    family: 'grid',
+    source: aStarGridSource,
+    input: {
+      rows: 7,
+      columns: 7,
+      walls: [
+        [0, 3],
+        [1, 1],
+        [1, 3],
+        [2, 3],
+        [2, 5],
+        [3, 1],
+        [3, 5],
+        [4, 1],
+        [4, 3],
+        [4, 5],
+        [5, 3],
+        [5, 5],
+      ],
+      start: [0, 0],
+      goal: [6, 6],
+    },
+    complexity: { time: 'O(RC log(RC))', space: 'O(RC)' },
     origin: 'preset',
   },
 ];

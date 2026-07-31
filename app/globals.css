@@ -641,6 +641,28 @@ pre {
   color: var(--green);
 }
 
+.grid-cell.is-wall {
+  background: rgba(255, 255, 255, 0.11);
+  color: var(--ink);
+}
+
+.grid-cell.is-open {
+  color: var(--blue);
+}
+
+.grid-cell.is-path {
+  border-color: rgba(104, 221, 168, 0.5);
+  background: rgba(104, 221, 168, 0.18);
+  color: var(--green);
+  box-shadow: inset 0 0 16px rgba(104, 221, 168, 0.08);
+}
+
+.grid-cell.is-start,
+.grid-cell.is-goal {
+  color: var(--ink);
+  font-weight: 750;
+}
+
 .stage-placeholder::before,
 .stage-placeholder::after {
   position: absolute;
