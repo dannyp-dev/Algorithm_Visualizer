@@ -4,6 +4,7 @@ import type {
   RuntimeStatus,
   TraceFrame,
 } from '@/lib/types';
+import { formatExecutionErrorMessage } from '@/lib/execution-errors';
 import { parseTraceFrames } from '@/lib/validation';
 
 const EXECUTION_TIMEOUT_MS = 12_000;
@@ -121,8 +122,7 @@ class PyodideExecutionEngine {
   };
 
   private cleanError(message: string) {
-    const lines = message.split('\n').filter(Boolean);
-    return lines.at(-1)?.replace(/^.*Error:\s*/, '') || 'Execution failed.';
+    return formatExecutionErrorMessage(message);
   }
 
   private resetWorker() {

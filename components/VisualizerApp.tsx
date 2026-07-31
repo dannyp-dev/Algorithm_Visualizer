@@ -6,14 +6,21 @@ import GenerateDialog from '@/components/GenerateDialog';
 import InspectorPanel from '@/components/InspectorPanel';
 import TransportControls from '@/components/TransportControls';
 import VisualizationStage from '@/components/VisualizationStage';
-import { explainSnapshot, generateAlgorithm } from '@/lib/gemini';
+import {
+  explainSnapshot,
+  generateAlgorithm,
+  repairGeneratedAlgorithm,
+} from '@/lib/gemini';
+import { assertGeneratedInputContract } from '@/lib/generation-contract';
 import { pyodideEngine } from '@/lib/pyodide-client';
 import { algorithmPresets } from '@/lib/presets';
 import { useVisualizerStore } from '@/lib/store';
 import type {
   AlgorithmDefinition,
+  ExecutionResult,
   GraphEdge,
   JsonValue,
+  RuntimeStatus,
   VisualState,
 } from '@/lib/types';
 
@@ -100,12 +107,41 @@ export default function VisualizerApp() {
     setAiBusy(true);
     setAiError('');
     try {
-      const generated = await generateAlgorithm(apiKey, request);
+      let generated = await generateAlgorithm(apiKey, request);
+      let validation: ExecutionResult;
+
+      try {
+        validation = await preflightGeneratedAlgorithm(
+          generated,
+          setRuntime,
+        );
+      } catch (firstError) {
+        const failure =
+          firstError instanceof Error
+            ? firstError.message
+            : 'The generated algorithm failed its execution preflight.';
+        setRuntime('loading', 'Repairing the generated source and input');
+        generated = await repairGeneratedAlgorithm(
+          apiKey,
+          request,
+          generated,
+          failure,
+        );
+        validation = await preflightGeneratedAlgorithm(
+          generated,
+          setRuntime,
+        );
+      }
+
       setAlgorithm(generated);
+      setExecution(validation);
       setGenerateOpen(false);
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Algorithm generation failed.';
+      setRuntime('error', message);
       setAiError(
-        error instanceof Error ? error.message : 'Algorithm generation failed.',
+        `The generated algorithm could not pass its execution check after one repair attempt. ${message}`,
       );
     } finally {
       setAiBusy(false);
@@ -298,6 +334,28 @@ export default function VisualizerApp() {
   );
 }
 
+async function preflightGeneratedAlgorithm(
+  algorithm: AlgorithmDefinition,
+  setRuntime: (
+    status: RuntimeStatus,
+    message?: string,
+  ) => void,
+): Promise<ExecutionResult> {
+  assertGeneratedInputContract(algorithm);
+  setRuntime('loading', 'Checking generated source against its sample input');
+  const result = await pyodideEngine.execute(
+    algorithm.source,
+    algorithm.input,
+    (status, message) => setRuntime(status, message),
+  );
+  if (!result.frames.length) {
+    throw new Error(
+      'Generated code ran without emitting any visualization snapshots.',
+    );
+  }
+  return result;
+}
+
 function getInputPreview(
   algorithm: AlgorithmDefinition,
 ): VisualState | undefined {
@@ -341,7 +399,63 @@ function getInputPreview(
     return { kind: 'graph', nodes, edges };
   }
 
+  if (
+    algorithm.family === 'grid' &&
+    typeof algorithm.input.rows === 'number' &&
+    Number.isInteger(algorithm.input.rows) &&
+    algorithm.input.rows > 0 &&
+    algorithm.input.rows <= 120 &&
+    typeof algorithm.input.columns === 'number' &&
+    Number.isInteger(algorithm.input.columns) &&
+    algorithm.input.columns > 0 &&
+    algorithm.input.columns <= 120
+  ) {
+    const rows = algorithm.input.rows;
+    const columns = algorithm.input.columns;
+    const walls = new Set(
+      Array.isArray(algorithm.input.walls)
+        ? algorithm.input.walls
+            .map(toCoordinate)
+            .filter((cell): cell is [number, number] => Boolean(cell))
+            .map(([row, column]) => `${row}-${column}`)
+        : [],
+    );
+    const start = toCoordinate(algorithm.input.start);
+    const goal = toCoordinate(algorithm.input.goal);
+    const cells = Array.from({ length: rows }, (_, row) =>
+      Array.from({ length: columns }, (_, column) => {
+        if (start?.[0] === row && start[1] === column) return 'S';
+        if (goal?.[0] === row && goal[1] === column) return 'G';
+        return walls.has(`${row}-${column}`) ? '■' : '·';
+      }),
+    );
+
+    return {
+      kind: 'grid',
+      cells,
+      rowLabels: Array.from({ length: rows }, (_, index) => String(index)),
+      columnLabels: Array.from(
+        { length: columns },
+        (_, index) => String(index),
+      ),
+    };
+  }
+
   return undefined;
+}
+
+function toCoordinate(value: JsonValue | undefined): [number, number] | null {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    typeof value[0] !== 'number' ||
+    typeof value[1] !== 'number' ||
+    !Number.isInteger(value[0]) ||
+    !Number.isInteger(value[1])
+  ) {
+    return null;
+  }
+  return [value[0], value[1]];
 }
 
 function isRecord(value: JsonValue): value is { [key: string]: JsonValue } {

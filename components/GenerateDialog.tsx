@@ -70,8 +70,9 @@ export default function GenerateDialog({
 
       <p className="dialog-intro">
         Gemini will write Python that follows the same trace contract as the
-        built-in examples. The response is validated before it enters the
-        editor.
+        built-in examples. The response is executed against its own sample
+        input before it enters the editor, with one automatic repair attempt if
+        the pair disagrees.
       </p>
 
       <label className="dialog-field">
@@ -110,8 +111,11 @@ export default function GenerateDialog({
       </label>
 
       <p className="key-note">
-        The key is kept only in this page&apos;s memory and sent through the
-        same-origin proxy. It is never saved or committed.{' '}
+        The key is kept only in this page&apos;s memory and{' '}
+        {process.env.NEXT_PUBLIC_STATIC_HOSTING === 'true'
+          ? 'sent directly to Google from your browser.'
+          : 'sent through the same-origin proxy.'}{' '}
+        It is never saved or committed.{' '}
         <a
           href="https://aistudio.google.com/app/apikey"
           target="_blank"
@@ -137,7 +141,7 @@ export default function GenerateDialog({
           onClick={() => onGenerate(request)}
           disabled={busy || !request.trim() || !apiKey.trim()}
         >
-          {busy ? 'Generating contract…' : 'Generate algorithm'}
+          {busy ? 'Generating and checking…' : 'Generate algorithm'}
         </button>
       </div>
     </dialog>

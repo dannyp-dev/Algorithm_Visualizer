@@ -63,6 +63,8 @@ Rules:
 - The source must be complete, deterministic Python.
 - Use only Python built-ins or these modules: bisect, collections, copy, functools, heapq, itertools, json, math, random, statistics.
 - Never access files, networks, the DOM, environment variables, subprocesses, sockets, or system modules.
+- Treat source and sample input as one executable pair. Every literal input_data["key"] used by the source must exist in the returned input object.
+- Never read input_data["grid"] unless the returned input actually contains a grid matrix. For coordinate-based grids, prefer rows, columns, walls, start, and goal consistently in both source and input.
 - Emit before and after meaningful decisions so the trace explains the algorithm.
 - Keep traces between roughly 8 and 180 frames for the supplied sample input.
 - line is a real 1-based source line number.
@@ -111,6 +113,61 @@ export async function generateAlgorithm(
     },
   });
 
+  return parseGeneratedAlgorithm(response);
+}
+
+export async function repairGeneratedAlgorithm(
+  apiKey: string,
+  request: string,
+  candidate: AlgorithmDefinition,
+  failure: string,
+): Promise<AlgorithmDefinition> {
+  const response = await callGemini(apiKey, {
+    systemInstruction: {
+      parts: [
+        {
+          text: `${generationSystemInstruction}
+
+You are repairing a candidate that failed an actual browser-side Python preflight.
+Return a complete corrected definition, not a patch.
+Keep the original intent, but make the source and sample input agree exactly.
+The repaired program must emit at least one valid snapshot when run with the repaired input.`,
+        },
+      ],
+    },
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: JSON.stringify({
+              originalRequest: request,
+              preflightFailure: failure,
+              candidate: {
+                name: candidate.name,
+                summary: candidate.summary,
+                family: candidate.family,
+                source: candidate.source,
+                input: candidate.input,
+                complexity: candidate.complexity,
+              },
+            }),
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.08,
+      maxOutputTokens: 12_000,
+      responseMimeType: 'application/json',
+      responseJsonSchema: algorithmResponseSchema,
+    },
+  });
+
+  return parseGeneratedAlgorithm(response);
+}
+
+function parseGeneratedAlgorithm(response: unknown): AlgorithmDefinition {
   const text = readCandidateText(response);
   let parsed: unknown;
   try {

@@ -29,8 +29,10 @@ The product is designed around one separation:
 - Keep source lines, visual state, variables, and explanations synchronized
 - Render arrays, graphs, trees, and grids with D3 geometry
 - Generate new trace-compatible algorithms with Gemini
+- Execute every generated source/input pair before accepting it
+- Ask Gemini for one automatic repair when a generated pair fails preflight
 - Ask Gemini to explain the exact selected snapshot
-- Use Bubble Sort, BFS, and Dijkstra without an API key
+- Use Bubble Sort, BFS, Dijkstra, and A* grid pathfinding without an API key
 
 ## Résumé architecture
 
@@ -125,6 +127,20 @@ def run(input_data, emit):
 variables and one supported visual shape.
 
 See [the complete algorithm contract](docs/algorithm-contract.md).
+
+## Generated-algorithm validation
+
+Gemini output crosses three boundaries before it becomes active:
+
+1. Zod validates the returned definition and renderer family.
+2. A literal-key audit confirms that fields such as `input_data["grid"]`
+   actually exist in the generated sample input.
+3. Pyodide executes the source against that sample and validates every emitted
+   snapshot.
+
+If the first candidate fails the second or third boundary, Algorithm Studio
+sends the candidate and exact preflight failure back to Gemini for one focused
+repair. The repaired pair must pass the same checks before entering the editor.
 
 ## Gemini key behavior
 
