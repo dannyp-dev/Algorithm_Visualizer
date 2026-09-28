@@ -11,7 +11,6 @@ The product is designed around one separation:
 
 ## Published release
 
-- Production: [danny-algorithm-studio.perojevicdanny.chatgpt.site](https://danny-algorithm-studio.perojevicdanny.chatgpt.site)
 - Public mirror: [dannyp-dev.github.io/algorithm-studio](https://dannyp-dev.github.io/algorithm-studio/)
 - Source: [github.com/dannyp-dev/algorithm-studio](https://github.com/dannyp-dev/algorithm-studio)
 - Access: the GitHub Pages mirror is public and requires no ChatGPT sign-in
