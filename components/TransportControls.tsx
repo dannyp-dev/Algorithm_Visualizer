@@ -31,6 +31,21 @@ export default function TransportControls() {
     return () => window.clearInterval(interval);
   }, [frames.length, isPlaying, playbackSpeed]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"], .monaco-editor, dialog')) return;
+      if (!useVisualizerStore.getState().frames.length) return;
+      if (event.key === 'ArrowRight') { event.preventDefault(); stepForward(); }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); stepBackward(); }
+      if (event.key === ' ') { event.preventDefault(); setPlaying(!useVisualizerStore.getState().isPlaying); }
+      if (event.key === 'Home') { event.preventDefault(); setFrameIndex(0); }
+      if (event.key === 'End') { event.preventDefault(); setFrameIndex(useVisualizerStore.getState().frames.length - 1); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [setFrameIndex, setPlaying, stepBackward, stepForward]);
+
   const hasFrames = frames.length > 0;
   const lastIndex = Math.max(0, frames.length - 1);
   const progress = hasFrames ? (frameIndex / Math.max(lastIndex, 1)) * 100 : 0;
@@ -58,7 +73,10 @@ export default function TransportControls() {
           className="transport-play"
           type="button"
           aria-label={isPlaying ? 'Pause' : 'Play'}
-          onClick={() => setPlaying(!isPlaying)}
+          onClick={() => {
+            if (!isPlaying && frameIndex === lastIndex) setFrameIndex(0);
+            setPlaying(!isPlaying);
+          }}
           disabled={frames.length < 2}
         >
           {isPlaying ? 'Ⅱ' : '▶'}
@@ -107,9 +125,8 @@ export default function TransportControls() {
           </select>
         </label>
         <div className="technology-line">
-          <span>Pyodide</span>
-          <span>Zustand</span>
-          <span>D3</span>
+          <span>← → step</span>
+          <span>space play / pause</span>
         </div>
       </div>
     </footer>

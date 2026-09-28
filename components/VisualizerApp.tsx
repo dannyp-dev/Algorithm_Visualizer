@@ -31,6 +31,7 @@ export default function VisualizerApp() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
   const [isExplaining, setIsExplaining] = useState(false);
+  const [explanationError, setExplanationError] = useState('');
   const algorithm = useVisualizerStore((state) => state.algorithm);
   const source = useVisualizerStore((state) => state.source);
   const inputText = useVisualizerStore((state) => state.inputText);
@@ -49,7 +50,17 @@ export default function VisualizerApp() {
   const runtimeMessage = useVisualizerStore((state) => state.runtimeMessage);
 
   const currentFrame = frames[frameIndex];
-  const preview = useMemo(() => getInputPreview(algorithm), [algorithm]);
+  const preview = useMemo(() => {
+    try {
+      return getInputPreview({ ...algorithm, input: JSON.parse(inputText) as JsonValue });
+    } catch {
+      return undefined;
+    }
+  }, [algorithm, inputText]);
+  const inputError = useMemo(() => {
+    try { JSON.parse(inputText); return ''; }
+    catch { return 'Input needs valid JSON before you can run it.'; }
+  }, [inputText]);
   const isWorking =
     runtimeStatus === 'loading' || runtimeStatus === 'running';
 
@@ -80,6 +91,11 @@ export default function VisualizerApp() {
         input,
         (status, message) => setRuntime(status, message),
       );
+      const latest = useVisualizerStore.getState();
+      if (latest.source !== source || latest.inputText !== inputText) {
+        setRuntime('idle', 'Code or input changed during the run. Run again.');
+        return;
+      }
       if (!result.frames.length) {
         setRuntime(
           'error',
@@ -102,6 +118,12 @@ export default function VisualizerApp() {
     source,
     isWorking,
   ]);
+
+  const randomizeInput = () => {
+    if (algorithm.family !== 'array') return;
+    const values = Array.from({ length: 9 }, () => Math.floor(Math.random() * 88) + 8);
+    setInputText(JSON.stringify({ values }, null, 2));
+  };
 
   const handleGenerate = async (request: string) => {
     setAiBusy(true);
@@ -150,21 +172,21 @@ export default function VisualizerApp() {
 
   const handleExplain = async () => {
     if (!currentFrame || !apiKey.trim() || isExplaining) return;
+    const selectedIndex = frameIndex;
+    const selectedFrame = currentFrame;
+    setExplanationError('');
     setIsExplaining(true);
     try {
       const explanation = await explainSnapshot(
         apiKey,
         algorithm,
-        currentFrame,
+        selectedFrame,
       );
-      updateFrameExplanation(frameIndex, explanation);
+      if (useVisualizerStore.getState().frames[selectedIndex]?.id === selectedFrame.id) {
+        updateFrameExplanation(selectedIndex, explanation);
+      }
     } catch (error) {
-      updateFrameExplanation(
-        frameIndex,
-        error instanceof Error
-          ? `Explanation unavailable: ${error.message}`
-          : 'Explanation unavailable.',
-      );
+      setExplanationError(error instanceof Error ? error.message : 'Explanation unavailable.');
     } finally {
       setIsExplaining(false);
     }
@@ -239,6 +261,8 @@ export default function VisualizerApp() {
         </button>
       </header>
 
+      {runtimeStatus === 'error' && <div className="runtime-alert" role="alert"><strong>Run stopped</strong><span>{runtimeMessage}</span></div>}
+
       {libraryOpen && (
         <section className="library-popover" aria-label="Algorithm library">
           <p className="eyebrow">Algorithm library</p>
@@ -270,7 +294,7 @@ export default function VisualizerApp() {
         <article className="workspace-panel editor-panel">
           <div className="panel-header">
             <span>01 / Source</span>
-            <span>Python 3.13 · WASM</span>
+            <span>Edit, then run</span>
           </div>
           <div className="editor-frame">
             <CodeEditor
@@ -284,7 +308,7 @@ export default function VisualizerApp() {
         <article className="workspace-panel stage-panel">
           <div className="panel-header">
             <span>02 / Structure</span>
-            <span>D3 viewport</span>
+            <span>{algorithm.summary}</span>
           </div>
           <VisualizationStage frame={currentFrame} preview={preview} />
         </article>
@@ -301,6 +325,9 @@ export default function VisualizerApp() {
             canExplain={Boolean(apiKey.trim())}
             isExplaining={isExplaining}
             onExplain={() => void handleExplain()}
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+            explanationError={explanationError}
           />
         </aside>
       </section>
@@ -308,7 +335,10 @@ export default function VisualizerApp() {
       <section className="input-drawer">
         <div className="panel-header">
           <span>Input / JSON</span>
-          <span>Editable</span>
+          <div className="input-tools">
+            <span className={inputError ? 'inline-error' : ''}>{inputError || 'Change values, then run again'}</span>
+            {algorithm.family === 'array' && <button type="button" onClick={randomizeInput}>↻ New numbers</button>}
+          </div>
         </div>
         <textarea
           value={inputText}

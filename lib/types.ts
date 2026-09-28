@@ -80,6 +80,7 @@ export interface TraceFrame {
   line: number;
   label: string;
   explanation: string;
+  aiExplanation?: string;
   variables: Record<string, JsonValue>;
   visual: VisualState;
 }

@@ -11,8 +11,8 @@ The product is designed around one separation:
 
 ## Published release
 
-- Public mirror: [dannyp-dev.github.io/algorithm-studio](https://dannyp-dev.github.io/algorithm-studio/)
-- Source: [github.com/dannyp-dev/algorithm-studio](https://github.com/dannyp-dev/algorithm-studio)
+- Public mirror: [dannyp-dev.github.io/Algorithm_Visualizer](https://dannyp-dev.github.io/Algorithm_Visualizer/)
+- Source: [github.com/dannyp-dev/Algorithm_Visualizer](https://github.com/dannyp-dev/Algorithm_Visualizer)
 - Access: the GitHub Pages mirror is public and requires no ChatGPT sign-in
 - Release status: validated v1 foundation, ready for new algorithm presets and
   renderer adapters
@@ -31,6 +31,8 @@ The product is designed around one separation:
 - Execute every generated source/input pair before accepting it
 - Ask Gemini for one automatic repair when a generated pair fails preflight
 - Ask Gemini to explain the exact selected snapshot
+- Generate an optional, separate explanation for each selected frame with a visitor-supplied Gemini key
+- Randomize sample arrays, use keyboard playback controls, and see input changes in the preview immediately
 - Use Bubble Sort, BFS, Dijkstra, and A* grid pathfinding without an API key
 
 ## Résumé architecture

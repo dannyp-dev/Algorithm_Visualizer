@@ -54,8 +54,8 @@ export const useVisualizerStore = create<VisualizerState>((set, get) => ({
       runtimeMessage: 'Ready to execute',
       isPlaying: false,
     }),
-  setSource: (source) => set({ source }),
-  setInputText: (inputText) => set({ inputText }),
+  setSource: (source) => set({ source, frames: [], frameIndex: 0, isPlaying: false, runtimeStatus: 'idle', runtimeMessage: 'Code changed. Run to see the new trace.' }),
+  setInputText: (inputText) => set({ inputText, frames: [], frameIndex: 0, isPlaying: false, runtimeStatus: 'idle', runtimeMessage: 'Input changed. Run to see the new trace.' }),
   setRuntime: (runtimeStatus, runtimeMessage = '') =>
     set({ runtimeStatus, runtimeMessage }),
   setExecution: ({ frames, durationMs }) =>
@@ -69,7 +69,7 @@ export const useVisualizerStore = create<VisualizerState>((set, get) => ({
   updateFrameExplanation: (index, explanation) =>
     set((state) => ({
       frames: state.frames.map((frame, frameIndex) =>
-        frameIndex === index ? { ...frame, explanation } : frame,
+        frameIndex === index ? { ...frame, aiExplanation: explanation } : frame,
       ),
     })),
   setFrameIndex: (frameIndex) => {

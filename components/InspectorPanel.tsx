@@ -9,6 +9,9 @@ interface InspectorPanelProps {
   canExplain: boolean;
   isExplaining: boolean;
   onExplain: () => void;
+  apiKey: string;
+  onApiKeyChange: (value: string) => void;
+  explanationError: string;
 }
 
 export default function InspectorPanel({
@@ -18,30 +21,34 @@ export default function InspectorPanel({
   canExplain,
   isExplaining,
   onExplain,
+  apiKey,
+  onApiKeyChange,
+  explanationError,
 }: InspectorPanelProps) {
   return (
     <div className="inspector-content">
       <div>
         <p className="eyebrow">Current operation</p>
         <h2>{frame?.label || 'Awaiting execution'}</h2>
-        <p>
+        <p className="step-explanation">
           {frame?.explanation ||
-            'Run the source to capture variables and visual state at every emit call.'}
+            'Run the algorithm to watch each decision, then use the timeline to move at your own pace.'}
         </p>
         {frame && (
-          <button
-            className="explain-button"
-            type="button"
-            onClick={onExplain}
-            disabled={!canExplain || isExplaining}
-          >
-            <span>✦</span>
-            {isExplaining
-              ? 'Reading this snapshot…'
-              : canExplain
-                ? 'Explain this snapshot'
-                : 'Add a Gemini key to explain'}
-          </button>
+          <div className="explain-card">
+            <div className="explain-card-heading"><span>✦</span><strong>Go deeper on this step</strong></div>
+            <p>Generate an optional explanation for this exact moment. Each frame keeps its own answer.</p>
+            {frame.aiExplanation ? <p className="ai-explanation">{frame.aiExplanation}</p> : (
+              <>
+                <label htmlFor="explanation-key">Gemini API key</label>
+                <input id="explanation-key" type="password" value={apiKey} onChange={(event) => onApiKeyChange(event.target.value)} placeholder="Paste your key to enable explanations" autoComplete="off" />
+                <button className="explain-button" type="button" onClick={onExplain} disabled={!canExplain || isExplaining}>
+                  {isExplaining ? 'Explaining this step…' : 'Explain this step ✦'}
+                </button>
+                {explanationError && <p className="inline-error" role="alert">{explanationError}</p>}
+              </>
+            )}
+          </div>
         )}
       </div>
 

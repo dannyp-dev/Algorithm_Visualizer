@@ -37,7 +37,7 @@ jobs:
       - name: Build the public mirror
         run: npm run build
         env:
-          NEXT_PUBLIC_BASE_PATH: /algorithm-studio
+          NEXT_PUBLIC_BASE_PATH: /Algorithm_Visualizer
           NEXT_PUBLIC_SITE_URL: https://dannyp-dev.github.io
           NEXT_PUBLIC_STATIC_HOSTING: 'true'
 
