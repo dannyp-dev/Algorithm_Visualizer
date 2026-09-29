@@ -67,9 +67,11 @@ Rules:
 - Never read input_data["grid"] unless the returned input actually contains a grid matrix. For coordinate-based grids, prefer rows, columns, walls, start, and goal consistently in both source and input.
 - Emit before and after meaningful decisions so the trace explains the algorithm.
 - Keep traces between roughly 8 and 180 frames for the supplied sample input.
+- Keep the source compact enough to return as one complete JSON object.
 - line is a real 1-based source line number.
 - variables and visual must contain JSON-safe values only.
 - explanation is one concise sentence grounded in the current values.
+- Choose the closest visual family: arrays for sequences, trees for recursion, graphs for relationships or state transitions, and grids for matrices, tables, or boards.
 
 Visual contracts:
 
@@ -91,29 +93,12 @@ export async function generateAlgorithm(
   apiKey: string,
   request: string,
 ): Promise<AlgorithmDefinition> {
-  const response = await callGemini(apiKey, {
-    systemInstruction: {
-      parts: [{ text: generationSystemInstruction }],
-    },
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: `Create a visualization-ready algorithm for this request:\n\n${request}`,
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.18,
-      maxOutputTokens: 12_000,
-      responseMimeType: 'application/json',
-      responseJsonSchema: algorithmResponseSchema,
-    },
-  });
-
-  return parseGeneratedAlgorithm(response);
+  return requestAlgorithmDefinition(
+    apiKey,
+    generationSystemInstruction,
+    `Create a visualization-ready algorithm for this request:\n\n${request}`,
+    0.18,
+  );
 }
 
 export async function repairGeneratedAlgorithm(
@@ -122,25 +107,15 @@ export async function repairGeneratedAlgorithm(
   candidate: AlgorithmDefinition,
   failure: string,
 ): Promise<AlgorithmDefinition> {
-  const response = await callGemini(apiKey, {
-    systemInstruction: {
-      parts: [
-        {
-          text: `${generationSystemInstruction}
+  return requestAlgorithmDefinition(
+    apiKey,
+    `${generationSystemInstruction}
 
 You are repairing a candidate that failed an actual browser-side Python preflight.
 Return a complete corrected definition, not a patch.
 Keep the original intent, but make the source and sample input agree exactly.
 The repaired program must emit at least one valid snapshot when run with the repaired input.`,
-        },
-      ],
-    },
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: JSON.stringify({
+    JSON.stringify({
               originalRequest: request,
               preflightFailure: failure,
               candidate: {
@@ -151,34 +126,60 @@ The repaired program must emit at least one valid snapshot when run with the rep
                 input: candidate.input,
                 complexity: candidate.complexity,
               },
-            }),
-          },
-        ],
-      },
-    ],
-    generationConfig: {
-      temperature: 0.08,
-      maxOutputTokens: 12_000,
-      responseMimeType: 'application/json',
-      responseJsonSchema: algorithmResponseSchema,
-    },
-  });
+    }),
+    0.08,
+  );
+}
 
-  return parseGeneratedAlgorithm(response);
+class GeminiOutputError extends Error {}
+
+async function requestAlgorithmDefinition(
+  apiKey: string,
+  systemInstruction: string,
+  userText: string,
+  temperature: number,
+): Promise<AlgorithmDefinition> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await callGemini(apiKey, {
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents: [{
+        role: 'user',
+        parts: [{ text: attempt === 0 ? userText : `${userText}\n\nReturn a complete compact JSON object. Keep the Python source under 120 lines and include every required field. The previous response was incomplete or invalid.` }],
+      }],
+      generationConfig: {
+        temperature: attempt === 0 ? temperature : 0.08,
+        maxOutputTokens: attempt === 0 ? 16_000 : 24_000,
+        thinkingConfig: { thinkingLevel: 'low' },
+        responseMimeType: 'application/json',
+        responseJsonSchema: algorithmResponseSchema,
+      },
+    });
+
+    try {
+      return parseGeneratedAlgorithm(response);
+    } catch (error) {
+      if (!(error instanceof GeminiOutputError)) throw error;
+      if (attempt === 1) {
+        throw new Error(`${error.message} The response was still invalid after one regeneration.`);
+      }
+    }
+  }
+  throw new Error('Gemini could not return a complete algorithm.');
 }
 
 function parseGeneratedAlgorithm(response: unknown): AlgorithmDefinition {
   const text = readCandidateText(response);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    const cleaned = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+    parsed = JSON.parse(cleaned);
   } catch {
-    throw new Error('Gemini returned malformed JSON. Try the request again.');
+    throw new GeminiOutputError('Gemini returned incomplete or malformed JSON.');
   }
 
   const result = generatedAlgorithmSchema.safeParse(parsed);
   if (!result.success) {
-    throw new Error(
+    throw new GeminiOutputError(
       `The generated algorithm did not satisfy the execution contract: ${result.error.issues[0]?.message || 'invalid response'}`,
     );
   }
@@ -222,7 +223,8 @@ export async function explainSnapshot(
     ],
     generationConfig: {
       temperature: 0.2,
-      maxOutputTokens: 420,
+      maxOutputTokens: 1_000,
+      thinkingConfig: { thinkingLevel: 'low' },
     },
   });
 
@@ -316,15 +318,23 @@ async function requestGemini(
 function readCandidateText(payload: unknown) {
   const result = payload as {
     candidates?: Array<{
+      finishReason?: string;
       content?: { parts?: Array<{ text?: string }> };
     }>;
   };
+  const finishReason = result.candidates?.[0]?.finishReason;
+  if (finishReason === 'MAX_TOKENS') {
+    throw new GeminiOutputError('Gemini reached its output token limit before finishing the response.');
+  }
+  if (finishReason && finishReason !== 'STOP') {
+    throw new Error(`Gemini stopped generating because of ${finishReason}.`);
+  }
   const text = result.candidates?.[0]?.content?.parts
     ?.map((part) => part.text || '')
     .join('');
 
   if (!text) {
-    throw new Error('Gemini returned an empty response.');
+    throw new GeminiOutputError('Gemini returned an empty response.');
   }
   return text;
 }

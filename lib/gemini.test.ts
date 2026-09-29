@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { explainSnapshot } from './gemini';
+import { explainSnapshot, generateAlgorithm } from './gemini';
 import { algorithmPresets } from './presets';
 import type { TraceFrame } from './types';
 
@@ -58,6 +58,46 @@ describe('Gemini requests', () => {
 
     await expect(explainSnapshot('test-key', algorithmPresets[0], frame))
       .rejects.toThrow('HTTP 503 on gemini-3.8-flash and HTTP 503 on gemini-3.1-flash-lite');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('regenerates an algorithm when the first JSON response is cut off', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STATIC_HOSTING', 'true');
+    const definition = {
+      name: 'Test Sort',
+      summary: 'A small test algorithm that emits one array snapshot.',
+      family: 'array',
+      source: 'def run(input_data, emit):\n    values = list(input_data["values"])\n    emit(3, "Show values", {"n": len(values)}, {"kind": "array", "values": values})',
+      input: { values: [3, 1] },
+      complexity: { time: 'O(n)', space: 'O(n)' },
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"name":' }] } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(definition) }] } }],
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateAlgorithm('test-key', 'Show a simple sort'))
+      .resolves.toMatchObject({ name: 'Test Sort', origin: 'generated' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstRequest = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const retryRequest = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(firstRequest.generationConfig.thinkingConfig.thinkingLevel).toBe('low');
+    expect(retryRequest.generationConfig.maxOutputTokens).toBe(24_000);
+  });
+
+  it('reports a malformed response only after regeneration also fails', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STATIC_HOSTING', 'true');
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: '{"name":' }] } }],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateAlgorithm('test-key', 'Binary search tree insertion'))
+      .rejects.toThrow('incomplete or malformed JSON. The response was still invalid after one regeneration.');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
