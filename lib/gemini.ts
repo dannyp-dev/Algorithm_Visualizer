@@ -4,6 +4,7 @@ import type {
   TraceFrame,
 } from './types';
 import { jsonValueSchema } from './validation';
+import { findMissingInputKeys } from './generation-contract';
 
 const generatedAlgorithmSchema = z.object({
   name: z.string().min(2).max(72),
@@ -116,19 +117,68 @@ Return a complete corrected definition, not a patch.
 Keep the original intent, but make the source and sample input agree exactly.
 The repaired program must emit at least one valid snapshot when run with the repaired input.`,
     JSON.stringify({
-              originalRequest: request,
-              preflightFailure: failure,
-              candidate: {
-                name: candidate.name,
-                summary: candidate.summary,
-                family: candidate.family,
-                source: candidate.source,
-                input: candidate.input,
-                complexity: candidate.complexity,
-              },
+      originalRequest: request,
+      preflightFailure: failure,
+      candidate: {
+        name: candidate.name,
+        summary: candidate.summary,
+        family: candidate.family,
+        source: candidate.source,
+        input: candidate.input,
+        complexity: candidate.complexity,
+      },
     }),
     0.08,
   );
+}
+
+export async function repairGeneratedInput(
+  apiKey: string,
+  request: string,
+  candidate: AlgorithmDefinition,
+  missingKeys: string[],
+): Promise<AlgorithmDefinition> {
+  const response = await callGemini(apiKey, {
+    systemInstruction: {
+      parts: [{ text: 'Fix only the sample JSON input for the supplied Python source. Return one JSON object with an input property. Keep existing useful fields, add every missing key, and use small deterministic values that make the algorithm executable. Do not return Python or Markdown.' }],
+    },
+    contents: [{
+      role: 'user',
+      parts: [{ text: JSON.stringify({
+        request,
+        source: candidate.source,
+        currentInput: candidate.input,
+        missingKeys,
+      }) }],
+    }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 4_000,
+      thinkingConfig: { thinkingLevel: 'low' },
+      responseMimeType: 'application/json',
+    },
+  });
+
+  const text = readCandidateText(response);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripJsonFence(text));
+  } catch {
+    throw new Error('Gemini could not return a valid sample input.');
+  }
+  const possibleInput = parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'input' in parsed
+    ? parsed.input
+    : parsed;
+  const validInput = jsonValueSchema.safeParse(possibleInput);
+  if (!validInput.success) {
+    throw new Error('Gemini returned invalid sample input.');
+  }
+  const corrected = { ...candidate, input: validInput.data };
+  const stillMissing = findMissingInputKeys(corrected.source, corrected.input);
+  if (stillMissing.length) {
+    throw new Error(`Gemini's sample input still lacks ${stillMissing.join(', ')}.`);
+  }
+  return corrected;
 }
 
 class GeminiOutputError extends Error {}
@@ -171,8 +221,7 @@ function parseGeneratedAlgorithm(response: unknown): AlgorithmDefinition {
   const text = readCandidateText(response);
   let parsed: unknown;
   try {
-    const cleaned = text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(stripJsonFence(text));
   } catch {
     throw new GeminiOutputError('Gemini returned incomplete or malformed JSON.');
   }
@@ -189,6 +238,10 @@ function parseGeneratedAlgorithm(response: unknown): AlgorithmDefinition {
     id: slugify(result.data.name),
     origin: 'generated',
   };
+}
+
+function stripJsonFence(text: string) {
+  return text.trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
 }
 
 export async function explainSnapshot(

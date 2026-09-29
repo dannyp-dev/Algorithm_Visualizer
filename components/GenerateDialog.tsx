@@ -76,8 +76,8 @@ export default function GenerateDialog({
       <p className="dialog-intro">
         Gemini will write Python that follows the same trace contract as the
         built-in examples. The response is executed against its own sample
-        input before it enters the editor, with one automatic repair attempt if
-        the pair disagrees.
+        input before it enters the editor. If the code and input disagree, the
+        app corrects the sample input or asks Gemini to repair the code.
       </p>
 
       <label className="dialog-field">

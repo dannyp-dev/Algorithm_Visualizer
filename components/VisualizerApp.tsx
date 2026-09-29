@@ -10,8 +10,9 @@ import {
   explainSnapshot,
   generateAlgorithm,
   repairGeneratedAlgorithm,
+  repairGeneratedInput,
 } from '@/lib/gemini';
-import { assertGeneratedInputContract } from '@/lib/generation-contract';
+import { assertGeneratedInputContract, findMissingInputKeys, reconcileGeneratedInput } from '@/lib/generation-contract';
 import { pyodideEngine } from '@/lib/pyodide-client';
 import { algorithmPresets } from '@/lib/presets';
 import { useVisualizerStore } from '@/lib/store';
@@ -130,15 +131,12 @@ export default function VisualizerApp() {
     setAiError('');
     let stage: 'generating' | 'checking' | 'repairing' | 'checking-repair' = 'generating';
     try {
-      let generated = await generateAlgorithm(apiKey, request);
+      let generated = reconcileGeneratedInput(await generateAlgorithm(apiKey, request), request);
       let validation: ExecutionResult;
 
       try {
         stage = 'checking';
-        validation = await preflightGeneratedAlgorithm(
-          generated,
-          setRuntime,
-        );
+        ({ generated, validation } = await prepareGeneratedAlgorithm(generated, request, apiKey, setRuntime));
       } catch (firstError) {
         const failure =
           firstError instanceof Error
@@ -152,11 +150,9 @@ export default function VisualizerApp() {
           generated,
           failure,
         );
+        generated = reconcileGeneratedInput(generated, request);
         stage = 'checking-repair';
-        validation = await preflightGeneratedAlgorithm(
-          generated,
-          setRuntime,
-        );
+        ({ generated, validation } = await prepareGeneratedAlgorithm(generated, request, apiKey, setRuntime));
       }
 
       setAlgorithm(generated);
@@ -170,7 +166,7 @@ export default function VisualizerApp() {
         generating: 'Gemini could not generate an algorithm.',
         checking: 'The generated algorithm failed its execution check.',
         repairing: 'The algorithm failed its execution check, and Gemini could not repair it.',
-        'checking-repair': 'The generated algorithm still failed after one repair attempt.',
+        'checking-repair': 'The generated algorithm still failed validation after correction.',
       }[stage];
       setAiError(`${context} ${message}`);
     } finally {
@@ -388,6 +384,22 @@ export default function VisualizerApp() {
       />
     </main>
   );
+}
+
+async function prepareGeneratedAlgorithm(
+  algorithm: AlgorithmDefinition,
+  request: string,
+  apiKey: string,
+  setRuntime: (status: RuntimeStatus, message?: string) => void,
+): Promise<{ generated: AlgorithmDefinition; validation: ExecutionResult }> {
+  let generated = reconcileGeneratedInput(algorithm, request);
+  const missingKeys = findMissingInputKeys(generated.source, generated.input);
+  if (missingKeys.length) {
+    setRuntime('loading', 'Matching generated code to its sample input');
+    generated = await repairGeneratedInput(apiKey, request, generated, missingKeys);
+  }
+  const validation = await preflightGeneratedAlgorithm(generated, setRuntime);
+  return { generated, validation };
 }
 
 async function preflightGeneratedAlgorithm(

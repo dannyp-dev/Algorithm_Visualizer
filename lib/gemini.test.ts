@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { explainSnapshot, generateAlgorithm } from './gemini';
+import { explainSnapshot, generateAlgorithm, repairGeneratedInput } from './gemini';
 import { algorithmPresets } from './presets';
 import type { TraceFrame } from './types';
 
@@ -99,5 +99,22 @@ describe('Gemini requests', () => {
     await expect(generateAlgorithm('test-key', 'Binary search tree insertion'))
       .rejects.toThrow('incomplete or malformed JSON. The response was still invalid after one regeneration.');
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('accepts a focused sample input repair only when required keys are present', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STATIC_HOSTING', 'true');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ input: { values: [8, 3, 10] } }) }] } }],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const candidate = {
+      ...algorithmPresets[0],
+      source: 'def run(input_data, emit):\n    values = input_data["values"]',
+      input: {},
+    };
+
+    await expect(repairGeneratedInput('test-key', 'BST insertion', candidate, ['values']))
+      .resolves.toMatchObject({ input: { values: [8, 3, 10] } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
