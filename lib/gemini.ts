@@ -2,8 +2,8 @@ import { z } from 'zod';
 import type {
   AlgorithmDefinition,
   TraceFrame,
-} from '@/lib/types';
-import { jsonValueSchema } from '@/lib/validation';
+} from './types';
+import { jsonValueSchema } from './validation';
 
 const generatedAlgorithmSchema = z.object({
   name: z.string().min(2).max(72),
@@ -229,6 +229,14 @@ export async function explainSnapshot(
   return readCandidateText(response).trim();
 }
 
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'] as const;
+
+class GeminiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 async function callGemini(
   apiKey: string,
   payload: Record<string, unknown>,
@@ -239,10 +247,27 @@ async function callGemini(
 
   const usesStaticHosting =
     process.env.NEXT_PUBLIC_STATIC_HOSTING === 'true';
-  const endpoint = usesStaticHosting
-    ? 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent'
-    : '/api/gemini';
+  try {
+    return await requestGemini(apiKey, payload, GEMINI_MODELS[0], usesStaticHosting);
+  } catch (error) {
+    if (!(error instanceof GeminiRequestError) || ![408, 429, 500, 502, 503, 504].includes(error.status)) {
+      throw error;
+    }
+    // Retry a temporary provider failure once on another supported Flash model.
+    await new Promise((resolve) => setTimeout(resolve, 750 + Math.random() * 500));
+    return requestGemini(apiKey, payload, GEMINI_MODELS[1], usesStaticHosting);
+  }
+}
 
+async function requestGemini(
+  apiKey: string,
+  payload: Record<string, unknown>,
+  model: (typeof GEMINI_MODELS)[number],
+  usesStaticHosting: boolean,
+): Promise<unknown> {
+  const endpoint = usesStaticHosting
+    ? `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+    : '/api/gemini';
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: usesStaticHosting
@@ -253,6 +278,7 @@ async function callGemini(
       : {
           'content-type': 'application/json',
           authorization: `Bearer ${apiKey.trim()}`,
+          'x-gemini-model': model,
         },
     body: JSON.stringify(payload),
   });
@@ -268,7 +294,7 @@ async function callGemini(
       typeof data.error === 'string'
         ? data.error
         : data.error?.message || `Gemini request failed (${response.status})`;
-    throw new Error(message);
+    throw new GeminiRequestError(`${message} (${model}, HTTP ${response.status})`, response.status);
   }
 
   return data;

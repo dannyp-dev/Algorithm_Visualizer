@@ -24,9 +24,16 @@ createServer(async (request, response) => {
       return;
     }
 
+    const model = request.headers['x-gemini-model'];
+    if (!['gemini-3.8-flash', 'gemini-3.5-flash'].includes(model)) {
+      response.writeHead(400, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: 'Unsupported Gemini model.' }));
+      return;
+    }
+
     try {
       const upstream = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent',
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: 'POST',
           headers: {

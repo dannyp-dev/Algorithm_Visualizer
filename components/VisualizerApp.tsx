@@ -128,11 +128,13 @@ export default function VisualizerApp() {
   const handleGenerate = async (request: string) => {
     setAiBusy(true);
     setAiError('');
+    let stage: 'generating' | 'checking' | 'repairing' | 'checking-repair' = 'generating';
     try {
       let generated = await generateAlgorithm(apiKey, request);
       let validation: ExecutionResult;
 
       try {
+        stage = 'checking';
         validation = await preflightGeneratedAlgorithm(
           generated,
           setRuntime,
@@ -143,12 +145,14 @@ export default function VisualizerApp() {
             ? firstError.message
             : 'The generated algorithm failed its execution preflight.';
         setRuntime('loading', 'Repairing the generated source and input');
+        stage = 'repairing';
         generated = await repairGeneratedAlgorithm(
           apiKey,
           request,
           generated,
           failure,
         );
+        stage = 'checking-repair';
         validation = await preflightGeneratedAlgorithm(
           generated,
           setRuntime,
@@ -162,9 +166,13 @@ export default function VisualizerApp() {
       const message =
         error instanceof Error ? error.message : 'Algorithm generation failed.';
       setRuntime('error', message);
-      setAiError(
-        `The generated algorithm could not pass its execution check after one repair attempt. ${message}`,
-      );
+      const context = {
+        generating: 'Gemini could not generate an algorithm.',
+        checking: 'The generated algorithm failed its execution check.',
+        repairing: 'The algorithm failed its execution check, and Gemini could not repair it.',
+        'checking-repair': 'The generated algorithm still failed after one repair attempt.',
+      }[stage];
+      setAiError(`${context} ${message}`);
     } finally {
       setAiBusy(false);
     }

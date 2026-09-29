@@ -1,4 +1,4 @@
-const GEMINI_MODEL = 'gemini-3.6-flash';
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
 const MAX_REQUEST_BYTES = 96_000;
 
 function jsonResponse(body, status = 200) {
@@ -26,6 +26,11 @@ async function proxyGemini(request) {
     return jsonResponse({ error: 'A Gemini session key is required.' }, 401);
   }
 
+  const model = request.headers.get('x-gemini-model');
+  if (!GEMINI_MODELS.includes(model)) {
+    return jsonResponse({ error: 'Unsupported Gemini model.' }, 400);
+  }
+
   let payload;
   try {
     payload = await request.json();
@@ -34,7 +39,7 @@ async function proxyGemini(request) {
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: 'POST',
       headers: {
