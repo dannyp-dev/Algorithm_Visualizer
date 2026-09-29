@@ -1,4 +1,4 @@
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 const MAX_REQUEST_BYTES = 96_000;
 
 function jsonResponse(body, status = 200) {

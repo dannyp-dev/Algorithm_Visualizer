@@ -178,6 +178,23 @@ export default function VisualizerApp() {
     }
   };
 
+  const handleUseExample = async (example: AlgorithmDefinition) => {
+    setAiBusy(true);
+    setAiError('');
+    try {
+      const result = await preflightGeneratedAlgorithm(example, setRuntime);
+      setAlgorithm(example);
+      setExecution(result);
+      setGenerateOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The example could not run.';
+      setRuntime('error', message);
+      setAiError(`The ${example.name} example could not run. ${message}`);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   const handleExplain = async () => {
     if (!currentFrame || !apiKey.trim() || isExplaining) return;
     const selectedIndex = frameIndex;
@@ -367,6 +384,7 @@ export default function VisualizerApp() {
           if (!aiBusy) setGenerateOpen(false);
         }}
         onGenerate={(request) => void handleGenerate(request)}
+        onUseExample={(example) => void handleUseExample(example)}
       />
     </main>
   );

@@ -229,11 +229,15 @@ export async function explainSnapshot(
   return readCandidateText(response).trim();
 }
 
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'] as const;
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'] as const;
 
 class GeminiRequestError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
+  constructor(
+    readonly providerMessage: string,
+    readonly status: number,
+    readonly model: string,
+  ) {
+    super(`${providerMessage} (${model}, HTTP ${status})`);
   }
 }
 
@@ -255,7 +259,16 @@ async function callGemini(
     }
     // Retry a temporary provider failure once on another supported Flash model.
     await new Promise((resolve) => setTimeout(resolve, 750 + Math.random() * 500));
-    return requestGemini(apiKey, payload, GEMINI_MODELS[1], usesStaticHosting);
+    try {
+      return await requestGemini(apiKey, payload, GEMINI_MODELS[1], usesStaticHosting);
+    } catch (fallbackError) {
+      if (fallbackError instanceof GeminiRequestError) {
+        throw new Error(
+          `Gemini returned HTTP ${error.status} on ${error.model} and HTTP ${fallbackError.status} on ${fallbackError.model}. ${fallbackError.providerMessage}`,
+        );
+      }
+      throw fallbackError;
+    }
   }
 }
 
@@ -294,7 +307,7 @@ async function requestGemini(
       typeof data.error === 'string'
         ? data.error
         : data.error?.message || `Gemini request failed (${response.status})`;
-    throw new GeminiRequestError(`${message} (${model}, HTTP ${response.status})`, response.status);
+    throw new GeminiRequestError(message, response.status, model);
   }
 
   return data;

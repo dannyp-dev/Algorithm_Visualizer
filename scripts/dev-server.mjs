@@ -25,7 +25,7 @@ createServer(async (request, response) => {
     }
 
     const model = request.headers['x-gemini-model'];
-    if (!['gemini-3.8-flash', 'gemini-3.5-flash'].includes(model)) {
+    if (!['gemini-3.8-flash', 'gemini-3.1-flash-lite'].includes(model)) {
       response.writeHead(400, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ error: 'Unsupported Gemini model.' }));
       return;

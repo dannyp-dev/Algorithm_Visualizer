@@ -34,7 +34,7 @@ describe('Gemini requests', () => {
       .resolves.toBe('These values are in order.');
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toContain('gemini-3.8-flash');
-    expect(fetchMock.mock.calls[1][0]).toContain('gemini-3.5-flash');
+    expect(fetchMock.mock.calls[1][0]).toContain('gemini-3.1-flash-lite');
   });
 
   it('does not retry a key or permission error', async () => {
@@ -47,5 +47,17 @@ describe('Gemini requests', () => {
     await expect(explainSnapshot('invalid-key', algorithmPresets[0], frame))
       .rejects.toThrow('API key is invalid.');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports both model failures when the provider stays unavailable', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STATIC_HOSTING', 'true');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { message: 'This model is currently experiencing high demand.' },
+    }), { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(explainSnapshot('test-key', algorithmPresets[0], frame))
+      .rejects.toThrow('HTTP 503 on gemini-3.8-flash and HTTP 503 on gemini-3.1-flash-lite');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

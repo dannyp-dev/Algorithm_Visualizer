@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { findOfflineExample } from '@/lib/offline-match';
+import type { AlgorithmDefinition } from '@/lib/types';
 
 interface GenerateDialogProps {
   open: boolean;
@@ -10,6 +12,7 @@ interface GenerateDialogProps {
   onApiKeyChange: (value: string) => void;
   onClose: () => void;
   onGenerate: (request: string) => void;
+  onUseExample: (algorithm: AlgorithmDefinition) => void;
 }
 
 const suggestions = [
@@ -27,11 +30,13 @@ export default function GenerateDialog({
   onApiKeyChange,
   onClose,
   onGenerate,
+  onUseExample,
 }: GenerateDialogProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const [request, setRequest] = useState(
     'A* pathfinding on a 7 × 7 grid with walls, showing the open set, closed set, and final path.',
   );
+  const offlineExample = findOfflineExample(request);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -129,6 +134,15 @@ export default function GenerateDialog({
         <p className="dialog-error" role="alert">
           {error}
         </p>
+      )}
+
+      {offlineExample && (
+        <div className="offline-option">
+          <span>Want to explore this now? {offlineExample.name} is ready to run without Gemini.</span>
+          <button type="button" onClick={() => onUseExample(offlineExample)} disabled={busy}>
+            Open {offlineExample.name} example
+          </button>
+        </div>
       )}
 
       <div className="dialog-actions">
