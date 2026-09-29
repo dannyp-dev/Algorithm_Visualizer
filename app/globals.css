@@ -1389,6 +1389,17 @@ pre {
 .explain-card input { min-width: 0; width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: #0b0d13; color: var(--ink); font-size: 12px; }
 .explain-button { min-height: 40px; justify-content: center; margin-top: 0; border-color: rgba(155,124,255,.5); background: rgba(155,124,255,.2); color: var(--ink); font-size: 12px; font-weight: 700; }
 .inspector-content .ai-explanation { padding: 12px; border-radius: 9px; background: rgba(122,156,255,.1); color: #e1e7f4 !important; }
+.step-conversation { display: grid; gap: 12px; min-width: 0; }
+.step-conversation-turn { display: grid; gap: 8px; }
+.step-conversation-message { min-width: 0; padding: 11px 12px; border-radius: 10px; background: rgba(122,156,255,.1); }
+.step-conversation-message.user-message { margin-left: 18px; border: 1px solid rgba(155,124,255,.25); background: rgba(155,124,255,.14); }
+.step-conversation-message.assistant-message { margin-right: 10px; }
+.step-conversation-message .message-speaker { display: block; margin-bottom: 5px; color: #b8c9ff; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.step-conversation-message p { color: #e1e7f4 !important; white-space: pre-wrap; overflow-wrap: anywhere; }
+.follow-up-form { display: grid; gap: 8px; padding-top: 4px; }
+.follow-up-form textarea { width: 100%; min-height: 74px; padding: 10px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 8px; background: #0b0d13; color: var(--ink); font: inherit; font-size: 12px; line-height: 1.5; }
+.follow-up-form textarea:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.follow-up-form textarea:disabled { opacity: .6; }
 .inline-error, .inspector-content .inline-error { color: #ff9ba3 !important; }
 .variable-row { padding: 10px 11px; }
 .variable-row > span, .variable-row code, .inspector-content dt, .inspector-content dd { font-size: 12px; }

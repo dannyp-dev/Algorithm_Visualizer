@@ -24,6 +24,7 @@ interface VisualizerState {
   setRuntime: (status: RuntimeStatus, message?: string) => void;
   setExecution: (result: ExecutionResult) => void;
   updateFrameExplanation: (index: number, explanation: string) => void;
+  appendFrameFollowUp: (index: number, question: string, answer: string) => void;
   setFrameIndex: (index: number) => void;
   stepForward: () => void;
   stepBackward: () => void;
@@ -70,6 +71,14 @@ export const useVisualizerStore = create<VisualizerState>((set, get) => ({
     set((state) => ({
       frames: state.frames.map((frame, frameIndex) =>
         frameIndex === index ? { ...frame, aiExplanation: explanation } : frame,
+      ),
+    })),
+  appendFrameFollowUp: (index, question, answer) =>
+    set((state) => ({
+      frames: state.frames.map((frame, frameIndex) =>
+        frameIndex === index
+          ? { ...frame, aiFollowUps: [...(frame.aiFollowUps || []), { question, answer }] }
+          : frame,
       ),
     })),
   setFrameIndex: (frameIndex) => {

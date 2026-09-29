@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { explainSnapshot, generateAlgorithm, repairGeneratedInput } from './gemini';
+import { answerStepQuestion, explainSnapshot, generateAlgorithm, repairGeneratedInput } from './gemini';
 import { algorithmPresets } from './presets';
 import type { TraceFrame } from './types';
 
@@ -19,6 +19,31 @@ afterEach(() => {
 });
 
 describe('Gemini requests', () => {
+  it('sends the selected step and previous answers with a follow-up question', async () => {
+    vi.stubEnv('NEXT_PUBLIC_STATIC_HOSTING', 'true');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: 'Because 3 is smaller than 5.' }] } }],
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const conversationalFrame = {
+      ...frame,
+      aiExplanation: 'We compare 3 and 5.',
+      aiFollowUps: [{ question: 'Which is smaller?', answer: '3 is smaller.' }],
+    };
+
+    await expect(answerStepQuestion('test-key', algorithmPresets[0], conversationalFrame, 'def run(input_data, emit):\n    pass', { values: [3, 5] }, 'Why does that matter?'))
+      .resolves.toBe('Because 3 is smaller than 5.');
+    const request = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const messages = request.contents;
+    expect(JSON.parse(messages[0].parts[0].text)).toMatchObject({
+      sourceLine: 2,
+      variables: { left: 3, right: 5 },
+      source: 'def run(input_data, emit):\n    pass',
+    });
+    expect(messages.slice(1).map((message: { parts: Array<{ text: string }> }) => message.parts[0].text))
+      .toEqual(['We compare 3 and 5.', 'Which is smaller?', '3 is smaller.', 'Why does that matter?']);
+  });
+
   it('uses another model after a temporary provider failure', async () => {
     vi.stubEnv('NEXT_PUBLIC_STATIC_HOSTING', 'true');
     const fetchMock = vi.fn()

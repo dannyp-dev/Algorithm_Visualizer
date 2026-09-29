@@ -7,6 +7,7 @@ import InspectorPanel from '@/components/InspectorPanel';
 import TransportControls from '@/components/TransportControls';
 import VisualizationStage from '@/components/VisualizationStage';
 import {
+  answerStepQuestion,
   explainSnapshot,
   generateAlgorithm,
   repairGeneratedAlgorithm,
@@ -22,6 +23,7 @@ import type {
   GraphEdge,
   JsonValue,
   RuntimeStatus,
+  TraceFrame,
   VisualState,
 } from '@/lib/types';
 
@@ -31,8 +33,8 @@ export default function VisualizerApp() {
   const [apiKey, setApiKey] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
-  const [isExplaining, setIsExplaining] = useState(false);
-  const [explanationError, setExplanationError] = useState('');
+  const [pendingExplanationFrame, setPendingExplanationFrame] = useState<TraceFrame | null>(null);
+  const [explanationError, setExplanationError] = useState<{ frame: TraceFrame; message: string } | null>(null);
   const algorithm = useVisualizerStore((state) => state.algorithm);
   const source = useVisualizerStore((state) => state.source);
   const inputText = useVisualizerStore((state) => state.inputText);
@@ -46,6 +48,7 @@ export default function VisualizerApp() {
   const updateFrameExplanation = useVisualizerStore(
     (state) => state.updateFrameExplanation,
   );
+  const appendFrameFollowUp = useVisualizerStore((state) => state.appendFrameFollowUp);
   const setPlaying = useVisualizerStore((state) => state.setPlaying);
   const runtimeStatus = useVisualizerStore((state) => state.runtimeStatus);
   const runtimeMessage = useVisualizerStore((state) => state.runtimeMessage);
@@ -192,24 +195,44 @@ export default function VisualizerApp() {
   };
 
   const handleExplain = async () => {
-    if (!currentFrame || !apiKey.trim() || isExplaining) return;
+    if (!currentFrame || !apiKey.trim() || pendingExplanationFrame) return;
     const selectedIndex = frameIndex;
     const selectedFrame = currentFrame;
-    setExplanationError('');
-    setIsExplaining(true);
+    setExplanationError(null);
+    setPendingExplanationFrame(selectedFrame);
     try {
       const explanation = await explainSnapshot(
         apiKey,
         algorithm,
         selectedFrame,
+        source,
       );
-      if (useVisualizerStore.getState().frames[selectedIndex]?.id === selectedFrame.id) {
+      if (useVisualizerStore.getState().frames[selectedIndex] === selectedFrame) {
         updateFrameExplanation(selectedIndex, explanation);
       }
     } catch (error) {
-      setExplanationError(error instanceof Error ? error.message : 'Explanation unavailable.');
+      setExplanationError({ frame: selectedFrame, message: error instanceof Error ? error.message : 'Explanation unavailable.' });
     } finally {
-      setIsExplaining(false);
+      setPendingExplanationFrame(null);
+    }
+  };
+
+  const handleFollowUp = async (question: string): Promise<boolean> => {
+    if (!currentFrame?.aiExplanation || !apiKey.trim() || pendingExplanationFrame) return false;
+    const selectedIndex = frameIndex;
+    const selectedFrame = currentFrame;
+    setExplanationError(null);
+    setPendingExplanationFrame(selectedFrame);
+    try {
+      const answer = await answerStepQuestion(apiKey, algorithm, selectedFrame, source, JSON.parse(inputText) as JsonValue, question);
+      if (useVisualizerStore.getState().frames[selectedIndex] !== selectedFrame) return false;
+      appendFrameFollowUp(selectedIndex, question, answer);
+      return true;
+    } catch (error) {
+      setExplanationError({ frame: selectedFrame, message: error instanceof Error ? error.message : 'Could not answer this question.' });
+      return false;
+    } finally {
+      setPendingExplanationFrame(null);
     }
   };
 
@@ -344,11 +367,13 @@ export default function VisualizerApp() {
             frame={currentFrame}
             frameCount={frames.length}
             canExplain={Boolean(apiKey.trim())}
-            isExplaining={isExplaining}
+            isExplaining={Boolean(pendingExplanationFrame)}
+            isExplainingThisFrame={pendingExplanationFrame === currentFrame}
             onExplain={() => void handleExplain()}
+            onAskFollowUp={handleFollowUp}
             apiKey={apiKey}
             onApiKeyChange={setApiKey}
-            explanationError={explanationError}
+            explanationError={explanationError && explanationError.frame === currentFrame ? explanationError.message : ''}
           />
         </aside>
       </section>
