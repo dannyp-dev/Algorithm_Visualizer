@@ -10,4 +10,9 @@ describe('offline example matching', () => {
   it('does not claim an unrelated sort is a built-in example', () => {
     expect(findOfflineExample('Merge sort on eight integers')).toBeUndefined();
   });
+
+  it('offers a tree visualization for binary search tree insertion', () => {
+    expect(findOfflineExample('Binary search tree insertion.')?.id)
+      .toBe('binary-search-tree-insertion');
+  });
 });

@@ -287,6 +287,57 @@ def grid_state(
     }
 `;
 
+const binarySearchTreeSource = `def run(input_data, emit):
+    values = list(input_data["values"])
+    nodes = []
+
+    def tree_state(active=None):
+        return {
+            "kind": "tree",
+            "nodes": [
+                {
+                    "id": "n" + str(index),
+                    "label": str(node["value"]),
+                    "parentId": None if node["parent"] is None else "n" + str(node["parent"]),
+                    "depth": node["depth"],
+                    "order": node["order"],
+                    "status": "active" if index == active else "complete"
+                }
+                for index, node in enumerate(nodes)
+            ]
+        }
+
+    for value in values:
+        if not nodes:
+            nodes.append({"value": value, "parent": None, "depth": 0,
+                          "order": 1, "left": None, "right": None})
+            emit(25, "Insert the root", {"value": value}, tree_state(0))
+            continue
+
+        current_index = 0
+        while True:
+            current = nodes[current_index]
+            emit(31, "Compare with the current node", {
+                "value": value, "current": current["value"]
+            }, tree_state(current_index))
+            direction = "left" if value < current["value"] else "right"
+            child_index = current[direction]
+            if child_index is None:
+                new_index = len(nodes)
+                nodes.append({"value": value, "parent": current_index,
+                              "depth": current["depth"] + 1,
+                              "order": current["order"] * 2 + (direction == "right"),
+                              "left": None, "right": None})
+                current[direction] = new_index
+                emit(43, "Insert as the " + direction + " child", {
+                    "value": value, "parent": current["value"], "side": direction
+                }, tree_state(new_index))
+                break
+            current_index = child_index
+
+    emit(49, "Insertion complete", {"inserted": values}, tree_state())
+`;
+
 export const algorithmPresets: AlgorithmDefinition[] = [
   {
     id: 'bubble-sort',
@@ -369,6 +420,16 @@ export const algorithmPresets: AlgorithmDefinition[] = [
       goal: [6, 6],
     },
     complexity: { time: 'O(RC log(RC))', space: 'O(RC)' },
+    origin: 'preset',
+  },
+  {
+    id: 'binary-search-tree-insertion',
+    name: 'Binary Search Tree Insertion',
+    summary: 'Each value follows comparisons until it finds an open child position.',
+    family: 'tree',
+    source: binarySearchTreeSource,
+    input: { values: [8, 3, 10, 1, 6, 14, 4] },
+    complexity: { time: 'O(nh)', space: 'O(n)' },
     origin: 'preset',
   },
 ];

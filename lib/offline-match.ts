@@ -5,6 +5,8 @@ export function findOfflineExample(request: string): AlgorithmDefinition | undef
   const normalized = request.toLowerCase().replace(/[\s_-]+/g, ' ');
   const id = /\ba\s*\*|\ba star\b|\bastar\b/.test(normalized)
     ? 'a-star-grid-pathfinding'
+    : /binary search tree|\bbst\b/.test(normalized)
+      ? 'binary-search-tree-insertion'
     : /\bdijkstra\b/.test(normalized)
       ? 'dijkstra-shortest-path'
       : /\bbreadth first\b|\bbfs\b/.test(normalized)
