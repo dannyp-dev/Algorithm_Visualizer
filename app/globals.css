@@ -91,13 +91,30 @@ pre {
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-columns: 255px minmax(180px, 1fr) auto auto auto auto;
+  grid-template-columns: auto 200px minmax(150px, 1fr) auto auto auto auto;
   align-items: center;
   gap: 16px;
   padding: 0 18px;
   border-bottom: 1px solid var(--line);
   background: rgba(9, 10, 13, 0.86);
   backdrop-filter: blur(18px);
+}
+
+.portfolio-return {
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  padding: 10px 0;
+}
+
+.portfolio-return:hover {
+  color: var(--ink);
+}
+
+.portfolio-return:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
 }
 
 .brand-lockup {
@@ -1218,6 +1235,10 @@ pre {
 }
 
 @media (max-width: 1080px) {
+  .portfolio-return {
+    grid-column: 1 / -1;
+    padding: 8px 0 0;
+  }
   body {
     overflow: auto;
   }
@@ -1269,6 +1290,9 @@ pre {
 }
 
 @media (max-width: 720px) {
+  .portfolio-return {
+    font-size: 14px;
+  }
   .topbar {
     grid-template-columns: 1fr auto;
     padding: 0 12px;

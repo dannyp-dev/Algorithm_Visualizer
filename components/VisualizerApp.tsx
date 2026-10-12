@@ -184,6 +184,9 @@ export default function VisualizerApp() {
   return (
     <main className="studio-shell">
       <header className="topbar">
+        <a className="portfolio-return" href="https://dannyp-dev.github.io/#work">
+          Back to portfolio
+        </a>
         <button
           className="brand-lockup"
           type="button"

@@ -206,6 +206,13 @@ docs/                      Maintainer-facing architecture notes
 
 ## Design intent
 
+## Portfolio navigation
+
+The header includes a normal Back to portfolio anchor pointing to the public
+selected-work section. Portfolio demo links navigate in the same tab, allowing
+browser Back to work naturally. The explicit anchor also works when a visitor
+arrives directly, without any history. Avoid history manipulation or redirects.
+
 The interface is a dark computational studio: tool-like and precise, with the
 same restrained blue-violet iridescence as Danny's portfolio. The desktop
 layout follows the system itself:
