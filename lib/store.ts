@@ -24,6 +24,7 @@ interface VisualizerState {
   setRuntime: (status: RuntimeStatus, message?: string) => void;
   setExecution: (result: ExecutionResult) => void;
   updateFrameExplanation: (index: number, explanation: string) => void;
+  appendFrameFollowUp: (index: number, question: string, answer: string) => void;
   setFrameIndex: (index: number) => void;
   stepForward: () => void;
   stepBackward: () => void;
@@ -54,8 +55,8 @@ export const useVisualizerStore = create<VisualizerState>((set, get) => ({
       runtimeMessage: 'Ready to execute',
       isPlaying: false,
     }),
-  setSource: (source) => set({ source }),
-  setInputText: (inputText) => set({ inputText }),
+  setSource: (source) => set({ source, frames: [], frameIndex: 0, isPlaying: false, runtimeStatus: 'idle', runtimeMessage: 'Code changed. Run to see the new trace.' }),
+  setInputText: (inputText) => set({ inputText, frames: [], frameIndex: 0, isPlaying: false, runtimeStatus: 'idle', runtimeMessage: 'Input changed. Run to see the new trace.' }),
   setRuntime: (runtimeStatus, runtimeMessage = '') =>
     set({ runtimeStatus, runtimeMessage }),
   setExecution: ({ frames, durationMs }) =>
@@ -69,7 +70,15 @@ export const useVisualizerStore = create<VisualizerState>((set, get) => ({
   updateFrameExplanation: (index, explanation) =>
     set((state) => ({
       frames: state.frames.map((frame, frameIndex) =>
-        frameIndex === index ? { ...frame, explanation } : frame,
+        frameIndex === index ? { ...frame, aiExplanation: explanation } : frame,
+      ),
+    })),
+  appendFrameFollowUp: (index, question, answer) =>
+    set((state) => ({
+      frames: state.frames.map((frame, frameIndex) =>
+        frameIndex === index
+          ? { ...frame, aiFollowUps: [...(frame.aiFollowUps || []), { question, answer }] }
+          : frame,
       ),
     })),
   setFrameIndex: (frameIndex) => {

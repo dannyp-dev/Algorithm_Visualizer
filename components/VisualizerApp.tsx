@@ -7,11 +7,13 @@ import InspectorPanel from '@/components/InspectorPanel';
 import TransportControls from '@/components/TransportControls';
 import VisualizationStage from '@/components/VisualizationStage';
 import {
+  answerStepQuestion,
   explainSnapshot,
   generateAlgorithm,
   repairGeneratedAlgorithm,
+  repairGeneratedInput,
 } from '@/lib/gemini';
-import { assertGeneratedInputContract } from '@/lib/generation-contract';
+import { assertGeneratedInputContract, findMissingInputKeys, reconcileGeneratedInput } from '@/lib/generation-contract';
 import { pyodideEngine } from '@/lib/pyodide-client';
 import { algorithmPresets } from '@/lib/presets';
 import { useVisualizerStore } from '@/lib/store';
@@ -21,6 +23,7 @@ import type {
   GraphEdge,
   JsonValue,
   RuntimeStatus,
+  TraceFrame,
   VisualState,
 } from '@/lib/types';
 
@@ -30,7 +33,8 @@ export default function VisualizerApp() {
   const [apiKey, setApiKey] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState('');
-  const [isExplaining, setIsExplaining] = useState(false);
+  const [pendingExplanationFrame, setPendingExplanationFrame] = useState<TraceFrame | null>(null);
+  const [explanationError, setExplanationError] = useState<{ frame: TraceFrame; message: string } | null>(null);
   const algorithm = useVisualizerStore((state) => state.algorithm);
   const source = useVisualizerStore((state) => state.source);
   const inputText = useVisualizerStore((state) => state.inputText);
@@ -44,12 +48,23 @@ export default function VisualizerApp() {
   const updateFrameExplanation = useVisualizerStore(
     (state) => state.updateFrameExplanation,
   );
+  const appendFrameFollowUp = useVisualizerStore((state) => state.appendFrameFollowUp);
   const setPlaying = useVisualizerStore((state) => state.setPlaying);
   const runtimeStatus = useVisualizerStore((state) => state.runtimeStatus);
   const runtimeMessage = useVisualizerStore((state) => state.runtimeMessage);
 
   const currentFrame = frames[frameIndex];
-  const preview = useMemo(() => getInputPreview(algorithm), [algorithm]);
+  const preview = useMemo(() => {
+    try {
+      return getInputPreview({ ...algorithm, input: JSON.parse(inputText) as JsonValue });
+    } catch {
+      return undefined;
+    }
+  }, [algorithm, inputText]);
+  const inputError = useMemo(() => {
+    try { JSON.parse(inputText); return ''; }
+    catch { return 'Input needs valid JSON before you can run it.'; }
+  }, [inputText]);
   const isWorking =
     runtimeStatus === 'loading' || runtimeStatus === 'running';
 
@@ -80,6 +95,11 @@ export default function VisualizerApp() {
         input,
         (status, message) => setRuntime(status, message),
       );
+      const latest = useVisualizerStore.getState();
+      if (latest.source !== source || latest.inputText !== inputText) {
+        setRuntime('idle', 'Code or input changed during the run. Run again.');
+        return;
+      }
       if (!result.frames.length) {
         setRuntime(
           'error',
@@ -103,34 +123,39 @@ export default function VisualizerApp() {
     isWorking,
   ]);
 
+  const randomizeInput = () => {
+    if (algorithm.family !== 'array') return;
+    const values = Array.from({ length: 9 }, () => Math.floor(Math.random() * 88) + 8);
+    setInputText(JSON.stringify({ values }, null, 2));
+  };
+
   const handleGenerate = async (request: string) => {
     setAiBusy(true);
     setAiError('');
+    let stage: 'generating' | 'checking' | 'repairing' | 'checking-repair' = 'generating';
     try {
-      let generated = await generateAlgorithm(apiKey, request);
+      let generated = reconcileGeneratedInput(await generateAlgorithm(apiKey, request), request);
       let validation: ExecutionResult;
 
       try {
-        validation = await preflightGeneratedAlgorithm(
-          generated,
-          setRuntime,
-        );
+        stage = 'checking';
+        ({ generated, validation } = await prepareGeneratedAlgorithm(generated, request, apiKey, setRuntime));
       } catch (firstError) {
         const failure =
           firstError instanceof Error
             ? firstError.message
             : 'The generated algorithm failed its execution preflight.';
         setRuntime('loading', 'Repairing the generated source and input');
+        stage = 'repairing';
         generated = await repairGeneratedAlgorithm(
           apiKey,
           request,
           generated,
           failure,
         );
-        validation = await preflightGeneratedAlgorithm(
-          generated,
-          setRuntime,
-        );
+        generated = reconcileGeneratedInput(generated, request);
+        stage = 'checking-repair';
+        ({ generated, validation } = await prepareGeneratedAlgorithm(generated, request, apiKey, setRuntime));
       }
 
       setAlgorithm(generated);
@@ -140,33 +165,74 @@ export default function VisualizerApp() {
       const message =
         error instanceof Error ? error.message : 'Algorithm generation failed.';
       setRuntime('error', message);
-      setAiError(
-        `The generated algorithm could not pass its execution check after one repair attempt. ${message}`,
-      );
+      const context = {
+        generating: 'Gemini could not generate an algorithm.',
+        checking: 'The generated algorithm failed its execution check.',
+        repairing: 'The algorithm failed its execution check, and Gemini could not repair it.',
+        'checking-repair': 'The generated algorithm still failed validation after correction.',
+      }[stage];
+      setAiError(`${context} ${message}`);
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const handleUseExample = async (example: AlgorithmDefinition) => {
+    setAiBusy(true);
+    setAiError('');
+    try {
+      const result = await preflightGeneratedAlgorithm(example, setRuntime);
+      setAlgorithm(example);
+      setExecution(result);
+      setGenerateOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The example could not run.';
+      setRuntime('error', message);
+      setAiError(`The ${example.name} example could not run. ${message}`);
     } finally {
       setAiBusy(false);
     }
   };
 
   const handleExplain = async () => {
-    if (!currentFrame || !apiKey.trim() || isExplaining) return;
-    setIsExplaining(true);
+    if (!currentFrame || !apiKey.trim() || pendingExplanationFrame) return;
+    const selectedIndex = frameIndex;
+    const selectedFrame = currentFrame;
+    setExplanationError(null);
+    setPendingExplanationFrame(selectedFrame);
     try {
       const explanation = await explainSnapshot(
         apiKey,
         algorithm,
-        currentFrame,
+        selectedFrame,
+        source,
       );
-      updateFrameExplanation(frameIndex, explanation);
+      if (useVisualizerStore.getState().frames[selectedIndex] === selectedFrame) {
+        updateFrameExplanation(selectedIndex, explanation);
+      }
     } catch (error) {
-      updateFrameExplanation(
-        frameIndex,
-        error instanceof Error
-          ? `Explanation unavailable: ${error.message}`
-          : 'Explanation unavailable.',
-      );
+      setExplanationError({ frame: selectedFrame, message: error instanceof Error ? error.message : 'Explanation unavailable.' });
     } finally {
-      setIsExplaining(false);
+      setPendingExplanationFrame(null);
+    }
+  };
+
+  const handleFollowUp = async (question: string): Promise<boolean> => {
+    if (!currentFrame?.aiExplanation || !apiKey.trim() || pendingExplanationFrame) return false;
+    const selectedIndex = frameIndex;
+    const selectedFrame = currentFrame;
+    setExplanationError(null);
+    setPendingExplanationFrame(selectedFrame);
+    try {
+      const answer = await answerStepQuestion(apiKey, algorithm, selectedFrame, source, JSON.parse(inputText) as JsonValue, question);
+      if (useVisualizerStore.getState().frames[selectedIndex] !== selectedFrame) return false;
+      appendFrameFollowUp(selectedIndex, question, answer);
+      return true;
+    } catch (error) {
+      setExplanationError({ frame: selectedFrame, message: error instanceof Error ? error.message : 'Could not answer this question.' });
+      return false;
+    } finally {
+      setPendingExplanationFrame(null);
     }
   };
 
@@ -242,6 +308,8 @@ export default function VisualizerApp() {
         </button>
       </header>
 
+      {runtimeStatus === 'error' && <div className="runtime-alert" role="alert"><strong>Run stopped</strong><span>{runtimeMessage}</span></div>}
+
       {libraryOpen && (
         <section className="library-popover" aria-label="Algorithm library">
           <p className="eyebrow">Algorithm library</p>
@@ -273,7 +341,7 @@ export default function VisualizerApp() {
         <article className="workspace-panel editor-panel">
           <div className="panel-header">
             <span>01 / Source</span>
-            <span>Python 3.13 · WASM</span>
+            <span>Edit, then run</span>
           </div>
           <div className="editor-frame">
             <CodeEditor
@@ -287,7 +355,7 @@ export default function VisualizerApp() {
         <article className="workspace-panel stage-panel">
           <div className="panel-header">
             <span>02 / Structure</span>
-            <span>D3 viewport</span>
+            <span>{algorithm.summary}</span>
           </div>
           <VisualizationStage frame={currentFrame} preview={preview} />
         </article>
@@ -302,8 +370,13 @@ export default function VisualizerApp() {
             frame={currentFrame}
             frameCount={frames.length}
             canExplain={Boolean(apiKey.trim())}
-            isExplaining={isExplaining}
+            isExplaining={Boolean(pendingExplanationFrame)}
+            isExplainingThisFrame={pendingExplanationFrame === currentFrame}
             onExplain={() => void handleExplain()}
+            onAskFollowUp={handleFollowUp}
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+            explanationError={explanationError && explanationError.frame === currentFrame ? explanationError.message : ''}
           />
         </aside>
       </section>
@@ -311,7 +384,10 @@ export default function VisualizerApp() {
       <section className="input-drawer">
         <div className="panel-header">
           <span>Input / JSON</span>
-          <span>Editable</span>
+          <div className="input-tools">
+            <span className={inputError ? 'inline-error' : ''}>{inputError || 'Change values, then run again'}</span>
+            {algorithm.family === 'array' && <button type="button" onClick={randomizeInput}>↻ New numbers</button>}
+          </div>
         </div>
         <textarea
           value={inputText}
@@ -332,9 +408,26 @@ export default function VisualizerApp() {
           if (!aiBusy) setGenerateOpen(false);
         }}
         onGenerate={(request) => void handleGenerate(request)}
+        onUseExample={(example) => void handleUseExample(example)}
       />
     </main>
   );
+}
+
+async function prepareGeneratedAlgorithm(
+  algorithm: AlgorithmDefinition,
+  request: string,
+  apiKey: string,
+  setRuntime: (status: RuntimeStatus, message?: string) => void,
+): Promise<{ generated: AlgorithmDefinition; validation: ExecutionResult }> {
+  let generated = reconcileGeneratedInput(algorithm, request);
+  const missingKeys = findMissingInputKeys(generated.source, generated.input);
+  if (missingKeys.length) {
+    setRuntime('loading', 'Matching generated code to its sample input');
+    generated = await repairGeneratedInput(apiKey, request, generated, missingKeys);
+  }
+  const validation = await preflightGeneratedAlgorithm(generated, setRuntime);
+  return { generated, validation };
 }
 
 async function preflightGeneratedAlgorithm(

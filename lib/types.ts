@@ -80,6 +80,8 @@ export interface TraceFrame {
   line: number;
   label: string;
   explanation: string;
+  aiExplanation?: string;
+  aiFollowUps?: Array<{ question: string; answer: string }>;
   variables: Record<string, JsonValue>;
   visual: VisualState;
 }

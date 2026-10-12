@@ -119,8 +119,8 @@ export default function CodeEditor({
         minimap: { enabled: false },
         fontFamily:
           '"SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace',
-        fontSize: 11,
-        lineHeight: 19,
+        fontSize: 14,
+        lineHeight: 23,
         padding: { top: 14, bottom: 28 },
         renderLineHighlight: 'line',
         scrollBeyondLastLine: false,

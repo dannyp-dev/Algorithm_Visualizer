@@ -7,7 +7,7 @@ import type {
 import { formatExecutionErrorMessage } from '@/lib/execution-errors';
 import { parseTraceFrames } from '@/lib/validation';
 
-const EXECUTION_TIMEOUT_MS = 12_000;
+const EXECUTION_TIMEOUT_MS = 30_000;
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 type StatusHandler = (status: RuntimeStatus, message: string) => void;
@@ -44,7 +44,7 @@ class PyodideExecutionEngine {
         this.resetWorker();
         reject(
           new Error(
-            'Execution exceeded 12 seconds. Check for an infinite loop or reduce the input size.',
+            'Execution exceeded 30 seconds. Check for an infinite loop, a slow connection, or reduce the input size.',
           ),
         );
       }, EXECUTION_TIMEOUT_MS);

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { AlgorithmDefinition, TraceFrame } from '@/lib/types';
 
 interface InspectorPanelProps {
@@ -8,7 +9,12 @@ interface InspectorPanelProps {
   frameCount: number;
   canExplain: boolean;
   isExplaining: boolean;
+  isExplainingThisFrame: boolean;
   onExplain: () => void;
+  onAskFollowUp: (question: string) => Promise<boolean>;
+  apiKey: string;
+  onApiKeyChange: (value: string) => void;
+  explanationError: string;
 }
 
 export default function InspectorPanel({
@@ -17,31 +23,69 @@ export default function InspectorPanel({
   frameCount,
   canExplain,
   isExplaining,
+  isExplainingThisFrame,
   onExplain,
+  onAskFollowUp,
+  apiKey,
+  onApiKeyChange,
+  explanationError,
 }: InspectorPanelProps) {
   return (
     <div className="inspector-content">
       <div>
         <p className="eyebrow">Current operation</p>
         <h2>{frame?.label || 'Awaiting execution'}</h2>
-        <p>
+        <p className="step-explanation">
           {frame?.explanation ||
-            'Run the source to capture variables and visual state at every emit call.'}
+            'Run the algorithm to watch each decision, then use the timeline to move at your own pace.'}
         </p>
         {frame && (
-          <button
-            className="explain-button"
-            type="button"
-            onClick={onExplain}
-            disabled={!canExplain || isExplaining}
-          >
-            <span>✦</span>
-            {isExplaining
-              ? 'Reading this snapshot…'
-              : canExplain
-                ? 'Explain this snapshot'
-                : 'Add a Gemini key to explain'}
-          </button>
+          <div className="explain-card">
+            <div className="explain-card-heading"><span>✦</span><strong>Go deeper on this step</strong></div>
+            <p>Ask Gemini about this moment. Your questions stay with this step as you move through the timeline.</p>
+            {frame.aiExplanation ? (
+              <div className="step-conversation" aria-label="Questions about this step">
+                <div className="step-conversation-message assistant-message">
+                  <span className="message-speaker">Gemini</span>
+                  <p>{frame.aiExplanation}</p>
+                </div>
+                {frame.aiFollowUps?.map(({ question, answer }, index) => (
+                  <div className="step-conversation-turn" key={index}>
+                    <div className="step-conversation-message user-message">
+                      <span className="message-speaker">You</span>
+                      <p>{question}</p>
+                    </div>
+                    <div className="step-conversation-message assistant-message">
+                      <span className="message-speaker">Gemini</span>
+                      <p>{answer}</p>
+                    </div>
+                  </div>
+                ))}
+                <FollowUpForm
+                  key={frame.id}
+                  onAskFollowUp={onAskFollowUp}
+                  disabled={isExplaining || !canExplain}
+                  busy={isExplainingThisFrame}
+                />
+                {!canExplain && (
+                  <>
+                    <label htmlFor="explanation-key">Gemini API key</label>
+                    <input id="explanation-key" type="password" value={apiKey} onChange={(event) => onApiKeyChange(event.target.value)} placeholder="Paste your key to keep asking" autoComplete="off" />
+                  </>
+                )}
+                {explanationError && <p className="inline-error" role="alert">{explanationError}</p>}
+              </div>
+            ) : (
+              <>
+                <label htmlFor="explanation-key">Gemini API key</label>
+                <input id="explanation-key" type="password" value={apiKey} onChange={(event) => onApiKeyChange(event.target.value)} placeholder="Paste your key to enable explanations" autoComplete="off" />
+                <button className="explain-button" type="button" onClick={onExplain} disabled={!canExplain || isExplaining}>
+                  {isExplainingThisFrame ? 'Explaining this step…' : 'Explain this step ✦'}
+                </button>
+                {explanationError && <p className="inline-error" role="alert">{explanationError}</p>}
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -80,6 +124,41 @@ export default function InspectorPanel({
         </div>
       </dl>
     </div>
+  );
+}
+
+function FollowUpForm({
+  onAskFollowUp,
+  disabled,
+  busy,
+}: {
+  onAskFollowUp: (question: string) => Promise<boolean>;
+  disabled: boolean;
+  busy: boolean;
+}) {
+  const [question, setQuestion] = useState('');
+
+  return (
+    <form className="follow-up-form" onSubmit={async (event) => {
+      event.preventDefault();
+      const trimmed = question.trim();
+      if (!trimmed || disabled) return;
+      if (await onAskFollowUp(trimmed)) setQuestion('');
+    }}>
+      <label htmlFor="step-follow-up">Ask a follow-up</label>
+      <textarea
+        id="step-follow-up"
+        value={question}
+        onChange={(event) => setQuestion(event.target.value)}
+        placeholder="Why did it choose this node?"
+        maxLength={500}
+        rows={3}
+        disabled={disabled}
+      />
+      <button className="explain-button" type="submit" disabled={disabled || !question.trim()}>
+        {busy ? 'Thinking…' : 'Ask Gemini ✦'}
+      </button>
+    </form>
   );
 }
 
